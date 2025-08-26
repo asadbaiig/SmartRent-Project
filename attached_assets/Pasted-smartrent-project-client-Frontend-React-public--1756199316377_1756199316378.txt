@@ -1,0 +1,220 @@
+smartrent-project/
+├── client/                          # Frontend (React)
+│   ├── public/
+│   │   ├── index.html
+│   │   ├── favicon.ico
+│   │   └── manifest.json
+│   ├── src/
+│   │   ├── components/              # Reusable components
+│   │   │   ├── common/
+│   │   │   │   ├── Header.tsx
+│   │   │   │   ├── Footer.tsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   ├── Modal.tsx
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Input.tsx
+│   │   │   │   ├── Loading.tsx
+│   │   │   │   └── ErrorBoundary.tsx
+│   │   │   ├── auth/
+│   │   │   │   ├── LoginForm.tsx
+│   │   │   │   ├── RegisterForm.tsx
+│   │   │   │   ├── VerificationUpload.tsx
+│   │   │   │   └── ForgotPassword.tsx
+│   │   │   ├── property/
+│   │   │   │   ├── PropertyCard.tsx
+│   │   │   │   ├── PropertyList.tsx
+│   │   │   │   ├── PropertyDetails.tsx
+│   │   │   │   ├── PropertyForm.tsx
+│   │   │   │   └── PropertyFilters.tsx
+│   │   │   ├── contract/
+│   │   │   │   ├── ContractForm.tsx
+│   │   │   │   ├── ContractViewer.tsx
+│   │   │   │   ├── ContractList.tsx
+│   │   │   │   └── DigitalSignature.tsx
+│   │   │   ├── payment/
+│   │   │   │   ├── PaymentForm.tsx
+│   │   │   │   ├── PaymentHistory.tsx
+│   │   │   │   ├── PaymentReceipt.tsx
+│   │   │   │   └── AutoPaySetup.tsx
+│   │   │   ├── dashboard/
+│   │   │   │   ├── TenantDashboard.tsx
+│   │   │   │   ├── LandlordDashboard.tsx
+│   │   │   │   ├── AdminDashboard.tsx
+│   │   │   │   └── DashboardStats.tsx
+│   │   │   ├── ai/
+│   │   │   │   ├── PriceSuggestion.tsx
+│   │   │   │   ├── LocationSuggestion.tsx
+│   │   │   │   └── AIInsights.tsx
+│   │   │   ├── documents/
+│   │   │   │   ├── DocumentUpload.tsx
+│   │   │   │   ├── DocumentViewer.tsx
+│   │   │   │   └── DocumentManager.tsx
+│   │   │   ├── dispute/
+│   │   │   │   ├── DisputeForm.tsx
+│   │   │   │   ├── DisputeList.tsx
+│   │   │   │   └── DisputeDetails.tsx
+│   │   │   └── notifications/
+│   │   │       ├── NotificationCenter.tsx
+│   │   │       ├── NotificationItem.tsx
+│   │   │       └── NotificationSettings.tsx
+│   │   ├── pages/                   # Page components
+│   │   │   ├── Home.tsx
+│   │   │   ├── Login.tsx
+│   │   │   ├── Register.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Properties.tsx
+│   │   │   ├── PropertyDetails.tsx
+│   │   │   ├── Contracts.tsx
+│   │   │   ├── Payments.tsx
+│   │   │   ├── Profile.tsx
+│   │   │   ├── Disputes.tsx
+│   │   │   ├── Documents.tsx
+│   │   │   ├── AdminPanel.tsx
+│   │   │   └── NotFound.tsx
+│   │   ├── hooks/                   # Custom hooks
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useFirebase.ts
+│   │   │   ├── useBlockchain.ts
+│   │   │   ├── usePayment.ts
+│   │   │   ├── useNotifications.ts
+│   │   │   └── useLocalStorage.ts
+│   │   ├── context/                 # Context providers
+│   │   │   ├── AuthContext.tsx
+│   │   │   ├── ThemeContext.tsx
+│   │   │   ├── NotificationContext.tsx
+│   │   │   └── BlockchainContext.tsx
+│   │   ├── services/                # API services
+│   │   │   ├── api.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── property.service.ts
+│   │   │   ├── contract.service.ts
+│   │   │   ├── payment.service.ts
+│   │   │   ├── ai.service.ts
+│   │   │   ├── blockchain.service.ts
+│   │   │   └── notification.service.ts
+│   │   ├── utils/                   # Utility functions
+│   │   │   ├── constants.ts
+│   │   │   ├── helpers.ts
+│   │   │   ├── validators.ts
+│   │   │   ├── formatters.ts
+│   │   │   └── localStorage.ts
+│   │   ├── types/                   # TypeScript types
+│   │   │   ├── auth.types.ts
+│   │   │   ├── property.types.ts
+│   │   │   ├── contract.types.ts
+│   │   │   ├── payment.types.ts
+│   │   │   ├── user.types.ts
+│   │   │   └── common.types.ts
+│   │   ├── assets/                  # Static assets
+│   │   │   ├── images/
+│   │   │   ├── icons/
+│   │   │   └── fonts/
+│   │   ├── styles/                  # Global styles
+│   │   │   ├── globals.css
+│   │   │   ├── components.css
+│   │   │   └── tailwind.css
+│   │   ├── App.tsx
+│   │   ├── index.tsx
+│   │   └── setupTests.ts
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   └── .env.local
+├── server/                          # Backend (Node.js + Express)
+│   ├── src/
+│   │   ├── controllers/             # Route controllers
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── user.controller.ts
+│   │   │   ├── property.controller.ts
+│   │   │   ├── contract.controller.ts
+│   │   │   ├── payment.controller.ts
+│   │   │   ├── ai.controller.ts
+│   │   │   ├── document.controller.ts
+│   │   │   ├── dispute.controller.ts
+│   │   │   └── notification.controller.ts
+│   │   ├── middleware/              # Express middleware
+│   │   │   ├── auth.middleware.ts
+│   │   │   ├── validation.middleware.ts
+│   │   │   ├── error.middleware.ts
+│   │   │   ├── upload.middleware.ts
+│   │   │   └── rateLimit.middleware.ts
+│   │   ├── routes/                  # API routes
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── user.routes.ts
+│   │   │   ├── property.routes.ts
+│   │   │   ├── contract.routes.ts
+│   │   │   ├── payment.routes.ts
+│   │   │   ├── ai.routes.ts
+│   │   │   ├── document.routes.ts
+│   │   │   ├── dispute.routes.ts
+│   │   │   └── notification.routes.ts
+│   │   ├── services/                # Business logic
+│   │   │   ├── auth.service.ts
+│   │   │   ├── user.service.ts
+│   │   │   ├── property.service.ts
+│   │   │   ├── contract.service.ts
+│   │   │   ├── payment.service.ts
+│   │   │   ├── ai.service.ts
+│   │   │   ├── blockchain.service.ts
+│   │   │   ├── email.service.ts
+│   │   │   ├── sms.service.ts
+│   │   │   └── storage.service.ts
+│   │   ├── models/                  # Firebase/Database models
+│   │   │   ├── User.model.ts
+│   │   │   ├── Property.model.ts
+│   │   │   ├── Contract.model.ts
+│   │   │   ├── Payment.model.ts
+│   │   │   ├── Document.model.ts
+│   │   │   ├── Dispute.model.ts
+│   │   │   └── Notification.model.ts
+│   │   ├── utils/                   # Utility functions
+│   │   │   ├── constants.ts
+│   │   │   ├── helpers.ts
+│   │   │   ├── validators.ts
+│   │   │   ├── logger.ts
+│   │   │   └── encryption.ts
+│   │   ├── types/                   # TypeScript types
+│   │   │   ├── express.types.ts
+│   │   │   ├── auth.types.ts
+│   │   │   ├── api.types.ts
+│   │   │   └── common.types.ts
+│   │   ├── config/                  # Configuration files
+│   │   │   ├── firebase.config.ts
+│   │   │   ├── blockchain.config.ts
+│   │   │   ├── payment.config.ts
+│   │   │   └── app.config.ts
+│   │   ├── app.ts                   # Express app setup
+│   │   └── server.ts                # Server entry point
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── .env
+├── contracts/                       # Blockchain smart contracts
+│   ├── contracts/
+│   │   ├── RentalAgreement.sol
+│   │   ├── UserVerification.sol
+│   │   ├── PaymentEscrow.sol
+│   │   └── DisputeResolution.sol
+│   ├── scripts/
+│   │   ├── deploy.js
+│   │   └── verify.js
+│   ├── test/
+│   │   ├── RentalAgreement.test.js
+│   │   └── PaymentEscrow.test.js
+│   ├── hardhat.config.js
+│   └── package.json
+├── shared/                          # Shared types and utilities
+│   ├── types/
+│   │   ├── index.ts
+│   │   ├── user.types.ts
+│   │   ├── property.types.ts
+│   │   └── contract.types.ts
+│   └── utils/
+│       ├── constants.ts
+│       └── validators.ts
+├── docs/                           # Documentation
+│   ├── api/
+│   ├── deployment/
+│   └── user-manual/
+├── .gitignore
+├── README.md
+└── docker-compose.yml

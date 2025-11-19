@@ -22,6 +22,7 @@ import {
   BarChart,
   IdCard
 } from "lucide-react";
+import { AnalyticsChart } from "@/components/analytics-chart";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -98,16 +99,16 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-warning-50 to-warning-100 dark:from-warning-900 dark:to-warning-800 border-warning-200 dark:border-warning-700">
+        <Card className="bg-gradient-to-br from-warning-50 to-warning-100 dark:from-primary-900 dark:to-primary-800 border-warning-200 dark:border-primary-700">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-warning-600 dark:text-warning-300 text-sm font-medium">Monthly Revenue</p>
-                <p className="text-2xl font-bold text-warning-900 dark:text-warning-100">
+                <p className="text-warning-600 dark:text-primary-200 text-sm font-medium">Monthly Revenue</p>
+                <p className="text-2xl font-bold text-warning-900 dark:text-primary-100">
                   {isLoading ? '...' : `₨${Number(stats?.monthlyRevenue || 0).toLocaleString()}`}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-warning-500 rounded-lg flex items-center justify-center">
+              <div className="w-12 h-12 bg-warning-500 dark:bg-primary-500 rounded-lg flex items-center justify-center">
                 <TrendingUp className="text-white h-6 w-6" />
               </div>
             </div>
@@ -129,6 +130,14 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Analytics Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Revenue Analytics Chart - Shows monthly revenue trends over the past 12 months */}
+        <AnalyticsChart type="revenue" chartStyle="area" />
+        {/* Properties Analytics Chart - Displays the number of properties listed each month */}
+        <AnalyticsChart type="properties" chartStyle="bar" />
       </div>
 
       {/* Quick Actions */}
@@ -172,7 +181,7 @@ export default function Dashboard() {
             <CardContent>
               <div className="space-y-3">
                 <Button className="w-full justify-start" asChild data-testid="button-add-property">
-                  <Link href="/properties/new">
+                  <Link href="/list-property">
                     <Plus className="mr-3 h-4 w-4" />
                     Add New Property
                   </Link>
@@ -183,10 +192,10 @@ export default function Dashboard() {
                     Create Contract
                   </Link>
                 </Button>
-                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-ai-pricing">
-                  <Link href="/ai-pricing">
-                    <Bot className="mr-3 h-4 w-4" />
-                    Get AI Price Suggestion
+                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-disputes">
+                  <Link href="/disputes">
+                    <Gavel className="mr-3 h-4 w-4" />
+                    Disputes
                   </Link>
                 </Button>
               </div>
@@ -266,6 +275,14 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Analytics Charts for Tenant */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Payment History Chart - Shows monthly rent payment history over the past 12 months */}
+        <AnalyticsChart type="payments" chartStyle="area" />
+        {/* Saved Properties Chart - Displays the number of properties saved to favorites each month */}
+        <AnalyticsChart type="savedProperties" chartStyle="bar" />
+      </div>
+
       {/* Quick Actions for Tenant */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
@@ -311,6 +328,12 @@ export default function Dashboard() {
                 <Link href="/verification">
                   <IdCard className="mr-3 h-4 w-4" />
                   Upload Documents
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start" asChild data-testid="button-disputes-tenant">
+                <Link href="/disputes">
+                  <Gavel className="mr-3 h-4 w-4" />
+                  Disputes
                 </Link>
               </Button>
             </div>
@@ -389,6 +412,14 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Analytics Charts for Admin */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Revenue Analytics Chart - Shows monthly revenue trends over the past 12 months */}
+        <AnalyticsChart type="revenue" chartStyle="area" />
+        {/* Properties Analytics Chart - Displays the number of properties listed each month */}
+        <AnalyticsChart type="properties" chartStyle="bar" />
+      </div>
+
       {/* Admin Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
@@ -418,7 +449,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-3">
               <Button className="w-full justify-start" variant="outline" asChild data-testid="button-manage-disputes">
-                <Link href="/admin/disputes">
+                <Link href="/disputes">
                   <Gavel className="mr-3 h-4 w-4" />
                   Manage Disputes
                 </Link>

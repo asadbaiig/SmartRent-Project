@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { motion } from "framer-motion";
 import { 
   FileText, 
   Plus, 
@@ -26,9 +27,20 @@ import {
   Gavel
 } from "lucide-react";
 
+const fadeInUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+};
+
+const containerStagger = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
+};
+
 export default function Contracts() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("list");
 
   // Fetch contracts
@@ -74,9 +86,9 @@ export default function Contracts() {
   };
 
   const ContractList = () => (
-    <div className="space-y-6">
+    <motion.div className="space-y-6" initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}>
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <motion.div className="flex justify-between items-center" variants={fadeInUp}>
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Your Contracts</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -89,13 +101,14 @@ export default function Contracts() {
             Create Contract
           </Button>
         )}
-      </div>
+      </motion.div>
 
       {/* Contracts Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" variants={containerStagger} initial="hidden" animate="visible">
           {Array.from({ length: 6 }, (_, i) => (
-            <Card key={i} className="animate-pulse">
+            <motion.div key={i} variants={fadeInUp}>
+            <Card className="animate-pulse">
               <CardContent className="p-6">
                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
                 <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded mb-4 w-2/3"></div>
@@ -103,10 +116,11 @@ export default function Contracts() {
                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
               </CardContent>
             </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       ) : contracts.length === 0 ? (
-        <div className="text-center py-16">
+        <motion.div className="text-center py-16" variants={fadeInUp}>
           <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             No contracts yet
@@ -116,17 +130,17 @@ export default function Contracts() {
               ? "Create your first rental contract to get started" 
               : "You don't have any active rental contracts"}
           </p>
-          {user?.role === 'landlord' && (
-            <Button onClick={() => setActiveTab("create")} data-testid="button-create-first-contract">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Your First Contract
-            </Button>
-          )}
-        </div>
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          variants={containerStagger}
+          initial="hidden"
+          animate="visible"
+        >
           {contracts.map((contract: any) => (
-            <Card key={contract.id} className="hover:shadow-lg transition-shadow">
+            <motion.div key={contract.id} variants={fadeInUp}>
+            <Card className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg line-clamp-2">Property Contract</CardTitle>
@@ -166,10 +180,11 @@ export default function Contracts() {
                 </div>
               </CardContent>
             </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 
   const CreateContract = () => {
@@ -182,23 +197,83 @@ export default function Contracts() {
       duration: "12",
       terms: "",
     });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       
+      // Validate required fields
+      if (!formData.propertyId) {
+        toast({
+          title: "Error",
+          description: "Please select a property",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!formData.tenantEmail) {
+        toast({
+          title: "Error",
+          description: "Please enter tenant email",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!formData.monthlyRent || !formData.securityDeposit) {
+        toast({
+          title: "Error",
+          description: "Please enter monthly rent and security deposit",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!formData.startDate) {
+        toast({
+          title: "Error",
+          description: "Please select a start date",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsSubmitting(true);
+      
       try {
         const token = localStorage.getItem('token');
+        
+        // First, find the tenant by email
+        const userResponse = await fetch(`/api/users/by-email?email=${encodeURIComponent(formData.tenantEmail)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!userResponse.ok) {
+          const errorData = await userResponse.json().catch(() => ({ message: 'Failed to find tenant' }));
+          throw new Error(errorData.message || 'Tenant not found. Please ensure the email is correct and the user is registered.');
+        }
+
+        const tenant = await userResponse.json();
+
+        if (tenant.role !== 'tenant') {
+          throw new Error('The specified user is not a tenant');
+        }
+
+        // Calculate end date
         const endDate = new Date(formData.startDate);
         endDate.setMonth(endDate.getMonth() + parseInt(formData.duration));
 
         const contractData = {
           propertyId: formData.propertyId,
-          tenantId: "temp-tenant-id", // This should be resolved from tenantEmail
-          monthlyRent: formData.monthlyRent,
-          securityDeposit: formData.securityDeposit,
-          startDate: formData.startDate,
+          tenantId: tenant.id,
+          monthlyRent: parseFloat(formData.monthlyRent),
+          securityDeposit: parseFloat(formData.securityDeposit),
+          startDate: new Date(formData.startDate).toISOString(),
           endDate: endDate.toISOString(),
-          terms: { customTerms: formData.terms },
+          terms: formData.terms ? { customTerms: formData.terms } : undefined,
         };
 
         const response = await fetch('/api/contracts', {
@@ -210,12 +285,30 @@ export default function Contracts() {
           body: JSON.stringify(contractData),
         });
 
-        if (!response.ok) throw new Error('Failed to create contract');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to create contract' }));
+          throw new Error(errorData.message || 'Failed to create contract');
+        }
 
         toast({
           title: "Success",
           description: "Contract created successfully!",
         });
+        
+        // Invalidate contracts query to refresh the list
+        queryClient.invalidateQueries({ queryKey: ['/api/contracts'] });
+        
+        // Reset form
+        setFormData({
+          propertyId: "",
+          tenantEmail: "",
+          monthlyRent: "",
+          securityDeposit: "",
+          startDate: "",
+          duration: "12",
+          terms: "",
+        });
+        
         setActiveTab("list");
       } catch (error: any) {
         toast({
@@ -223,6 +316,8 @@ export default function Contracts() {
           description: error.message || "Failed to create contract",
           variant: "destructive",
         });
+      } finally {
+        setIsSubmitting(false);
       }
     };
 
@@ -231,16 +326,20 @@ export default function Contracts() {
     };
 
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
+      <motion.div className="max-w-4xl mx-auto" initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}>
+        <motion.div className="mb-6" variants={fadeInUp}>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Contract</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Create a secure, blockchain-backed rental agreement
           </p>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <motion.div 
+          className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+          variants={containerStagger}
+        >
           {/* Contract Form */}
+          <motion.div variants={fadeInUp}>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -251,7 +350,7 @@ export default function Contracts() {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <Label htmlFor="property">Select Property</Label>
+                  <Label>Select Property</Label>
                   <Select value={formData.propertyId} onValueChange={(value) => updateField('propertyId', value)}>
                     <SelectTrigger data-testid="select-property">
                       <SelectValue placeholder="Choose a property" />
@@ -361,14 +460,20 @@ export default function Contracts() {
                 </div>
 
                 <div className="flex space-x-4">
-                  <Button type="submit" className="flex-1" data-testid="button-create-contract">
+                  <Button 
+                    type="submit" 
+                    className="flex-1" 
+                    disabled={isSubmitting}
+                    data-testid="button-create-contract"
+                  >
                     <FileText className="mr-2 h-4 w-4" />
-                    Create Contract
+                    {isSubmitting ? "Creating..." : "Create Contract"}
                   </Button>
                   <Button 
                     type="button" 
                     variant="outline" 
                     onClick={() => setActiveTab("list")}
+                    disabled={isSubmitting}
                     data-testid="button-cancel"
                   >
                     Cancel
@@ -377,10 +482,12 @@ export default function Contracts() {
               </form>
             </CardContent>
           </Card>
+          </motion.div>
 
           {/* Features Sidebar */}
-          <div className="space-y-6">
+          <motion.div className="space-y-6" variants={containerStagger}>
             {/* Blockchain Security */}
+            <motion.div variants={fadeInUp}>
             <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700">
               <CardContent className="p-6">
                 <div className="flex items-start space-x-4">
@@ -412,8 +519,10 @@ export default function Contracts() {
                 </div>
               </CardContent>
             </Card>
+            </motion.div>
 
             {/* Legal Compliance */}
+            <motion.div variants={fadeInUp}>
             <Card className="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900 dark:to-success-800 border-success-200 dark:border-success-700">
               <CardContent className="p-6">
                 <div className="flex items-start space-x-4">
@@ -445,8 +554,10 @@ export default function Contracts() {
                 </div>
               </CardContent>
             </Card>
+            </motion.div>
 
             {/* Contract Templates */}
+            <motion.div variants={fadeInUp}>
             <Card>
               <CardHeader>
                 <CardTitle>Contract Templates</CardTitle>
@@ -470,9 +581,10 @@ export default function Contracts() {
                 ))}
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </div>
+            </motion.div>
+          </motion.div>
+        </motion.div>
+      </motion.div>
     );
   };
 
@@ -491,21 +603,28 @@ export default function Contracts() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <motion.div 
+      className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8"
+      initial="hidden"
+      animate="visible"
+      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="list" data-testid="tab-list">My Contracts</TabsTrigger>
+        <motion.div variants={fadeInUp}>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="list" data-testid="tab-list">My Contracts</TabsTrigger>
+              {user?.role === 'landlord' && (
+                <TabsTrigger value="create" data-testid="tab-create">Create Contract</TabsTrigger>
+              )}
+            </TabsList>
+            <TabsContent value="list">{ContractList()}</TabsContent>
             {user?.role === 'landlord' && (
-              <TabsTrigger value="create" data-testid="tab-create">Create Contract</TabsTrigger>
+              <TabsContent value="create">{CreateContract()}</TabsContent>
             )}
-          </TabsList>
-          <TabsContent value="list">{ContractList()}</TabsContent>
-          {user?.role === 'landlord' && (
-            <TabsContent value="create">{CreateContract()}</TabsContent>
-          )}
-        </Tabs>
+          </Tabs>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

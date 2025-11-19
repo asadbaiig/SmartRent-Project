@@ -322,8 +322,8 @@ export default function Verification() {
 
                 <FileUploadArea
                   type="additional"
-                  title="Additional Documents (Optional)"
-                  description="Bank statement, employment letter, etc."
+                  title={user.role === 'landlord' ? "Real Estate License" : "Additional Documents (Optional)"}
+                  description={user.role === 'landlord' ? "Upload your valid Real Estate License" : "Bank statement, employment letter, etc."}
                 />
               </div>
 
@@ -333,12 +333,12 @@ export default function Verification() {
                 <Card className="bg-primary-50 dark:bg-primary-900 border-primary-200 dark:border-primary-700">
                   <CardContent className="p-6">
                     <div className="flex items-start space-x-3">
-                      <Shield className="text-primary-500 mt-1 h-5 w-5" />
+                      <Shield className="text-primary-500 dark:text-primary-300 mt-1 h-5 w-5" />
                       <div>
-                        <h4 className="text-primary-900 dark:text-primary-100 font-semibold mb-2">
+                        <h4 className="text-primary-900 dark:text-white font-semibold mb-2">
                           Secure & Encrypted
                         </h4>
-                        <p className="text-primary-700 dark:text-primary-200 text-sm">
+                        <p className="text-primary-700 dark:text-primary-100 text-sm">
                           Your documents are encrypted and stored securely. We only use them for verification purposes.
                         </p>
                       </div>
@@ -347,15 +347,15 @@ export default function Verification() {
                 </Card>
 
                 {/* Processing Time */}
-                <Card className="bg-warning-50 dark:bg-warning-900 border-warning-200 dark:border-warning-700">
+                <Card className="bg-warning-50 dark:bg-primary-900 border-warning-200 dark:border-primary-700">
                   <CardContent className="p-6">
                     <div className="flex items-start space-x-3">
-                      <Clock className="text-warning-500 mt-1 h-5 w-5" />
+                      <Clock className="text-warning-500 dark:text-primary-300 mt-1 h-5 w-5" />
                       <div>
-                        <h4 className="text-warning-900 dark:text-warning-100 font-semibold mb-2">
+                        <h4 className="text-warning-900 dark:text-white font-semibold mb-2">
                           Processing Time
                         </h4>
-                        <p className="text-warning-700 dark:text-warning-200 text-sm">
+                        <p className="text-warning-700 dark:text-primary-100 text-sm">
                           Manual verification typically takes 24-48 hours. You'll receive an email notification once complete.
                         </p>
                       </div>

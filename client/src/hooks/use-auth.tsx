@@ -22,6 +22,8 @@ interface AuthContextType {
     phone?: string;
     role: string;
   }) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  registerWithGoogle: (role: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -63,13 +65,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(authUser);
   };
 
+  const loginWithGoogle = async () => {
+    const { user: authUser } = await auth.loginWithGoogle();
+    setUser(authUser);
+  };
+
+  const registerWithGoogle = async (role: string) => {
+    const { user: authUser } = await auth.registerWithGoogle(role);
+    setUser(authUser);
+  };
+
   const logout = () => {
     auth.logout();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, registerWithGoogle, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

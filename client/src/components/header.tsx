@@ -7,14 +7,42 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Home, Moon, Sun, User, LogOut } from "lucide-react";
+import { Bell, Moon, Sun, User, LogOut } from "lucide-react";
 
 export function Header() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [location, setLocation] = useLocation();
+
+  const notifications = user
+    ? [
+        ...(user.verificationStatus !== "verified"
+          ? [
+              {
+                id: "verification",
+                title: "Verification In Review",
+                description:
+                  "We are reviewing your submitted documents. We'll notify you once verification is complete.",
+                status: "pending",
+              },
+            ]
+          : [
+              {
+                id: "verification-success",
+                title: "Verification Complete",
+                description:
+                  "Your account is verified. You can now access all platform features.",
+                status: "success",
+              },
+            ]),
+      ]
+    : [];
+
+  const unreadCount = notifications.length;
 
   const handleLogout = () => {
     logout();
@@ -22,28 +50,39 @@ export function Header() {
   };
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <header className="bg-[#FFF5FF]/70 dark:bg-[#1a0f2e]/70 backdrop-blur-md shadow-lg border-b border-[#A187B0]/20 dark:border-gray-700/20 sticky top-0 z-50 rounded-b-3xl">
+      <div className="w-full px-2">
+        <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center" data-testid="link-home">
+          <Link href="/" className="flex items-center ml-6" data-testid="link-home">
             <div className="flex-shrink-0 flex items-center">
-              <div className="h-8 w-8 bg-primary-500 rounded-lg flex items-center justify-center">
-                <Home className="text-white text-lg" />
-              </div>
-              <span className="ml-2 text-xl font-bold text-gray-900 dark:text-white">SmartRent</span>
-              <Badge variant="secondary" className="ml-2 text-xs bg-primary-100 text-primary-700">BETA</Badge>
+              <img 
+                src="/uploads/logo.png" 
+                alt="SmartRent Logo" 
+                className="h-[95px] w-auto object-contain"
+              />
             </div>
           </Link>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex space-x-8">
+          {/* Navigation - Centered */}
+          <nav className="hidden md:flex space-x-8 absolute left-1/2 transform -translate-x-1/2">
+            <Link 
+              href="/" 
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${
+                location === '/' 
+                  ? 'text-primary-600 dark:text-accent' 
+                  : 'text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-accent'
+              }`}
+              data-testid="link-home-tab"
+            >
+              Home
+            </Link>
             <Link 
               href="/properties" 
-              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${
                 location === '/properties' 
-                  ? 'text-gray-900 dark:text-white' 
-                  : 'text-gray-500 dark:text-gray-300 hover:text-primary-600'
+                  ? 'text-primary-600 dark:text-accent' 
+                  : 'text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-accent'
               }`}
               data-testid="link-properties"
             >
@@ -55,8 +94,8 @@ export function Header() {
                   href="/contracts" 
                   className={`px-3 py-2 text-sm font-medium transition-colors ${
                     location === '/contracts' 
-                      ? 'text-gray-900 dark:text-white' 
-                      : 'text-gray-500 dark:text-gray-300 hover:text-primary-600'
+                      ? 'text-primary-600 dark:text-accent' 
+                      : 'text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-accent'
                   }`}
                   data-testid="link-contracts"
                 >
@@ -66,8 +105,8 @@ export function Header() {
                   href="/payments" 
                   className={`px-3 py-2 text-sm font-medium transition-colors ${
                     location === '/payments' 
-                      ? 'text-gray-900 dark:text-white' 
-                      : 'text-gray-500 dark:text-gray-300 hover:text-primary-600'
+                      ? 'text-primary-600 dark:text-accent' 
+                      : 'text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-accent'
                   }`}
                   data-testid="link-payments"
                 >
@@ -78,7 +117,7 @@ export function Header() {
           </nav>
 
           {/* Right side actions */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             {/* Theme Toggle */}
             <Button
               variant="ghost"
@@ -94,10 +133,41 @@ export function Header() {
             {user ? (
               <>
                 {/* Notifications */}
-                <Button variant="ghost" size="sm" className="relative" data-testid="button-notifications">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-warning-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="relative" data-testid="button-notifications">
+                      <Bell className="h-5 w-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 h-4 w-4 bg-warning-500 text-white text-xs rounded-full flex items-center justify-center">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-80">
+                    <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {notifications.length === 0 ? (
+                      <div className="px-3 py-6 text-sm text-gray-500 text-center">
+                        You're all caught up. No new notifications.
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          className="flex flex-col items-start gap-1 focus:bg-gray-50 dark:focus:bg-gray-800"
+                        >
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {notification.title}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-300">
+                            {notification.description}
+                          </span>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {/* User Menu */}
                 <DropdownMenu>
@@ -108,16 +178,14 @@ export function Header() {
                           <User className="h-4 w-4 text-gray-600" />
                         </div>
                         <span className="hidden sm:block text-sm text-gray-700 dark:text-gray-300">{user.fullName}</span>
-                        <Badge 
-                          variant={user.verificationStatus === 'verified' ? 'default' : 'secondary'}
-                          className={`hidden sm:block text-xs ${
-                            user.verificationStatus === 'verified' 
-                              ? 'bg-success-100 text-success-700' 
-                              : 'bg-warning-100 text-warning-700'
-                          }`}
-                        >
-                          {user.verificationStatus === 'verified' ? 'Verified' : 'Pending'}
-                        </Badge>
+                        {user.verificationStatus === 'verified' && (
+                          <Badge 
+                            variant="default"
+                            className="hidden sm:block text-xs bg-success-100 text-success-700"
+                          >
+                            Verified
+                          </Badge>
+                        )}
                       </div>
                     </Button>
                   </DropdownMenuTrigger>

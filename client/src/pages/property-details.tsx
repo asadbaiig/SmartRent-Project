@@ -7,6 +7,15 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useParams } from "wouter";
 import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ChatDialog } from "@/components/chat-dialog";
+import { useState } from "react";
+import { 
   MapPin, 
   Bed, 
   Bath, 
@@ -20,21 +29,35 @@ import {
   Bot,
   FileText,
   ArrowLeft,
-  CheckCircle
+  CheckCircle,
+  Map
 } from "lucide-react";
 
 export default function PropertyDetails() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
+  const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
 
   // Fetch property details
   const { data: property, isLoading } = useQuery({
     queryKey: ['/api/properties', id],
     queryFn: async () => {
-      const response = await fetch(`/api/properties/${id}`);
-      if (!response.ok) throw new Error('Property not found');
-      return response.json();
+      try {
+        const response = await fetch(`/api/properties/${id}`);
+        if (response.ok) {
+          return response.json();
+        }
+      } catch {}
+      // Fallback to session cache saved from the list card
+      try {
+        const cached = sessionStorage.getItem(`property:${id}`);
+        if (cached) {
+          return JSON.parse(cached);
+        }
+      } catch {}
+      throw new Error('Property not found');
     },
     enabled: !!id,
   });
@@ -49,10 +72,12 @@ export default function PropertyDetails() {
       return;
     }
 
-    toast({
-      title: "Contact Request Sent",
-      description: "The landlord has been notified of your interest",
-    });
+    setIsContactDialogOpen(true);
+  };
+
+  const handleCallNow = () => {
+    const phoneNumber = "+92 3365447781";
+    window.location.href = `tel:${phoneNumber.replace(/\s/g, "")}`;
   };
 
   const handleFavorite = () => {
@@ -130,41 +155,19 @@ export default function PropertyDetails() {
           </Button>
         </div>
 
-        {/* Property Images */}
-        <div className="relative mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-96">
-            <div className="md:col-span-3">
-              <img 
-                src={propertyImages[0]} 
-                alt={property.title}
-                className="w-full h-full object-cover rounded-lg"
-              />
-            </div>
-            <div className="hidden md:grid grid-rows-2 gap-4">
-              {propertyImages.slice(1, 3).map((image: string, index: number) => (
-                <img 
-                  key={index}
-                  src={image} 
-                  alt={`Property view ${index + 2}`}
-                  className="w-full h-full object-cover rounded-lg"
-                />
-              ))}
-            </div>
-          </div>
-          
-          {/* Action Buttons */}
-          <div className="absolute top-4 right-4 flex space-x-2">
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              onClick={handleFavorite}
-              data-testid="button-favorite"
-            >
-              <Heart className="h-4 w-4" />
-            </Button>
-            <Button variant="secondary" size="sm" data-testid="button-share">
-              <Share2 className="h-4 w-4" />
-            </Button>
+        {/* Property Images aligned with layout (2/3 left, 1/3 reserved on right) */}
+        <div className="mb-8">
+          <div
+            className="relative mx-auto max-w-5xl rounded-2xl overflow-hidden shadow-lg"
+            style={{ aspectRatio: "16 / 9" }}
+          >
+            <img
+              src={propertyImages[0]}
+              alt={property.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              style={{ imageRendering: "auto" }}
+            />
           </div>
         </div>
 
@@ -287,9 +290,15 @@ export default function PropertyDetails() {
               <CardContent className="space-y-4">
                 <div className="text-center">
                   <div className="w-16 h-16 bg-gray-300 rounded-full mx-auto mb-3 flex items-center justify-center">
-                    <span className="text-xl font-semibold text-gray-600">PO</span>
+                    <span className="text-xl font-semibold text-gray-600">
+                      {property?.agent 
+                        ? property.agent.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'PO'
+                        : 'PO'}
+                    </span>
                   </div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Property Owner</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {property?.agent || "Property Owner"}
+                  </h3>
                   <div className="flex items-center justify-center space-x-1 mt-1">
                     <div className="flex text-yellow-400 text-sm">
                       {[...Array(5)].map((_, i) => (
@@ -310,7 +319,22 @@ export default function PropertyDetails() {
                     <Phone className="mr-2 h-4 w-4" />
                     Contact Now
                   </Button>
-                  <Button variant="outline" className="w-full" data-testid="button-send-message">
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    data-testid="button-send-message"
+                    onClick={() => {
+                      if (!user) {
+                        toast({
+                          title: "Login Required",
+                          description: "Please login to send a message",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      setIsChatDialogOpen(true);
+                    }}
+                  >
                     <Mail className="mr-2 h-4 w-4" />
                     Send Message
                   </Button>
@@ -370,23 +394,93 @@ export default function PropertyDetails() {
               </CardContent>
             </Card>
 
-            {/* Schedule Visit */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Schedule a Visit</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  See the property in person before making a decision
-                </p>
-                <Button variant="outline" className="w-full" data-testid="button-schedule-visit">
-                  Schedule Visit
-                </Button>
-              </CardContent>
-            </Card>
+            {/* View on Map */}
+            {(property.latitude && property.longitude) || property.coordinates ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Location</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    View this property on the map
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    asChild
+                    data-testid="button-view-on-map"
+                  >
+                    <Link 
+                      href={`/properties?view=map&propertyId=${property.id}${property.latitude && property.longitude ? `&lat=${property.latitude}&lng=${property.longitude}` : property.coordinates ? `&lat=${property.coordinates.lat}&lng=${property.coordinates.lng}` : ''}`}
+                    >
+                      <Map className="mr-2 h-4 w-4" />
+                      View on Map
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
         </div>
       </div>
+
+      {/* Contact Dialog */}
+      <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Contact Property Owner</DialogTitle>
+            <DialogDescription>
+              Get in touch with the property owner
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 bg-gray-300 rounded-full mx-auto mb-3 flex items-center justify-center">
+                <span className="text-xl font-semibold text-gray-600">
+                  {property?.agent 
+                    ? property.agent.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'PO'
+                    : 'PO'}
+                </span>
+              </div>
+              <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
+                {property?.agent || "Property Owner"}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Phone: <span className="font-mono">+92 3365447781</span>
+              </p>
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Button 
+                className="w-full" 
+                onClick={handleCallNow}
+                data-testid="button-call-now"
+              >
+                <Phone className="mr-2 h-4 w-4" />
+                Call Now
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setIsContactDialogOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Chat Dialog */}
+      {property && (
+        <ChatDialog
+          open={isChatDialogOpen}
+          onOpenChange={setIsChatDialogOpen}
+          propertyId={property.id}
+          propertyTitle={property.title}
+          landlordName={property?.agent || "Property Owner"}
+          landlordId={property.landlordId}
+        />
+      )}
     </div>
   );
 }

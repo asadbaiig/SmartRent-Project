@@ -16,9 +16,10 @@ interface SearchFiltersProps {
     bedrooms: string;
     aiSuggestions: boolean;
   }) => void;
+  variant?: 'default' | 'compact';
 }
 
-export function SearchFilters({ onSearch }: SearchFiltersProps) {
+export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersProps) {
   const [filters, setFilters] = useState({
     city: "",
     propertyType: "",
@@ -37,12 +38,12 @@ export function SearchFilters({ onSearch }: SearchFiltersProps) {
   };
 
   return (
-    <section className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 -mt-8 relative z-10">
+    <section className={`${variant === 'compact' ? 'bg-transparent border-none shadow-none' : 'bg-white dark:bg-gray-800 shadow-sm border-b border-[#A187B0]/20 dark:border-gray-700 -mt-8 relative z-10'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div className={`${variant === 'compact' ? 'rounded-lg border border-[#A187B0]/30 dark:border-gray-700 p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm' : 'bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-[#A187B0]/20 dark:border-gray-700 p-6'}`}>
+          <div className={`${variant === 'compact' ? 'grid grid-cols-2 lg:grid-cols-6 gap-3' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4'}`}>
             {/* Location */}
-            <div className="lg:col-span-2">
+            <div className={`${variant === 'compact' ? 'col-span-2 lg:col-span-2' : 'lg:col-span-2'}`}>
               <Label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Location
               </Label>
@@ -124,7 +125,7 @@ export function SearchFilters({ onSearch }: SearchFiltersProps) {
             <div className="flex items-end">
               <Button 
                 onClick={handleSearch} 
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white"
+                className={`w-full bg-gradient-primary hover:opacity-90 text-white ${variant === 'compact' ? 'h-10' : ''}`}
                 data-testid="button-search"
               >
                 <Search className="mr-2 h-4 w-4" />
@@ -134,7 +135,7 @@ export function SearchFilters({ onSearch }: SearchFiltersProps) {
           </div>
 
           {/* AI Suggestions Toggle */}
-          <div className="mt-4 flex items-center justify-between">
+          <div className={`${variant === 'compact' ? 'mt-3' : 'mt-4'} flex items-center justify-between`}>
             <div className="flex items-center space-x-2">
               <Checkbox 
                 id="ai-suggestions" 

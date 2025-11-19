@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,12 +14,21 @@ import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import Properties from "@/pages/properties";
 import PropertyDetails from "@/pages/property-details";
+import ListProperty from "@/pages/list-property";
 import Contracts from "@/pages/contracts";
 import Payments from "@/pages/payments";
 import Verification from "@/pages/verification";
+import Disputes from "@/pages/disputes";
 import NotFound from "@/pages/not-found";
 
 function Router() {
+  const [location] = useLocation();
+
+  // Scroll to top when route changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location]);
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -28,11 +38,13 @@ function Router() {
           <Route path="/login" component={Login} />
           <Route path="/register" component={Register} />
           <Route path="/dashboard" component={Dashboard} />
+          <Route path="/list-property" component={ListProperty} />
           <Route path="/properties" component={Properties} />
           <Route path="/properties/:id" component={PropertyDetails} />
           <Route path="/contracts" component={Contracts} />
           <Route path="/payments" component={Payments} />
           <Route path="/verification" component={Verification} />
+          <Route path="/disputes" component={Disputes} />
           <Route component={NotFound} />
         </Switch>
       </main>

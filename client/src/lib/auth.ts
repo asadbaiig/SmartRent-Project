@@ -1,3 +1,6 @@
+import { signInWithPopup } from "firebase/auth";
+import { auth as firebaseAuth, googleProvider } from "./firebase-client";
+
 interface User {
   id: string;
   email: string;
@@ -90,5 +93,94 @@ export const auth = {
 
   getToken(): string | null {
     return localStorage.getItem('token');
+  },
+
+  async loginWithGoogle(): Promise<AuthResponse> {
+    try {
+      // Sign in with Google using Firebase
+      const result = await signInWithPopup(firebaseAuth, googleProvider);
+      const user = result.user;
+      
+      // Get ID token
+      const idToken = await user.getIdToken();
+      
+      // Send user data and token to backend
+      const response = await fetch(`${API_BASE}/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user: {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            phoneNumber: user.phoneNumber,
+          },
+          idToken,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Google login failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.token);
+      return data;
+    } catch (error: any) {
+      // Handle popup closed by user
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in popup was closed');
+      }
+      throw error;
+    }
+  },
+
+  async registerWithGoogle(role: string): Promise<AuthResponse> {
+    try {
+      // Sign in with Google using Firebase
+      const result = await signInWithPopup(firebaseAuth, googleProvider);
+      const user = result.user;
+      
+      // Get ID token
+      const idToken = await user.getIdToken();
+      
+      // Send user data, token, and role to backend
+      const response = await fetch(`${API_BASE}/auth/google/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user: {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            phoneNumber: user.phoneNumber,
+          },
+          idToken,
+          role,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Google registration failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.token);
+      return data;
+    } catch (error: any) {
+      // Handle popup closed by user
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in popup was closed');
+      }
+      throw error;
+    }
   },
 };

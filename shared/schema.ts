@@ -253,17 +253,33 @@ export const insertPropertySchema = createInsertSchema(properties).omit({
   updatedAt: true,
 });
 
-export const insertContractSchema = createInsertSchema(contracts).omit({
+// Create schema without date requirements - dates will be handled in storage layer
+export const insertContractSchema = createInsertSchema(contracts)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+    startDate: true,
+    endDate: true,
+  })
+  .extend({
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    duration: z.union([z.number(), z.string()]).optional(),
+  });
+
+const basePaymentSchema = createInsertSchema(payments).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertPaymentSchema = createInsertSchema(payments).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertPaymentSchema = basePaymentSchema.merge(
+  z.object({
+    dueDate: z.coerce.date(),
+    paidDate: z.coerce.date().optional(),
+  })
+);
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,

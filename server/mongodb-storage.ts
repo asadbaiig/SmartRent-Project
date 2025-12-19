@@ -1,6 +1,7 @@
 import { getPropertyModel, getDocumentModel, getContractModel, type PropertyDocument, type DocumentDocument, type ContractDocument } from './mongodb-models';
 import { isMongoDBConnected } from './mongodb';
 import type { Property, InsertProperty, Document, InsertDocument, Contract, InsertContract } from '@shared/schema';
+import { blockchainService } from './blockchain-service';
 
 export class MongoDBStorage {
   private checkConnection(): void {
@@ -294,7 +295,43 @@ export class MongoDBStorage {
     });
     
     const saved = await contract.save();
-    return this.mapContractToSchema(saved);
+    const mappedContract = this.mapContractToSchema(saved);
+    
+    // Store on blockchain if enabled
+    if (blockchainService.isEnabled()) {
+      try {
+        // Generate default blockchain addresses if not provided
+        // In production, users should have their own wallet addresses
+        const landlordAddress = contractData.landlordId || "0x0000000000000000000000000000000000000001";
+        const tenantAddress = contractData.tenantId || "0x0000000000000000000000000000000000000002";
+        
+        const blockchainHash = await blockchainService.createContract({
+          contractId: mappedContract.id,
+          propertyId: mappedContract.propertyId,
+          landlordAddress,
+          tenantAddress,
+          monthlyRent: contractData.monthlyRent.toString(),
+          securityDeposit: contractData.securityDeposit.toString(),
+          startDate: mappedContract.startDate,
+          endDate: mappedContract.endDate,
+          terms: contractData.terms || {},
+          status: 0 // draft
+        });
+        
+        if (blockchainHash) {
+          // Update the contract with blockchain hash
+          saved.blockchainHash = blockchainHash;
+          await saved.save();
+          mappedContract.blockchainHash = blockchainHash;
+          console.log(`[MongoDB] Contract ${mappedContract.id} stored on blockchain: ${blockchainHash}`);
+        }
+      } catch (blockchainError) {
+        console.error('[MongoDB] Failed to store contract on blockchain:', blockchainError);
+        // Continue without blockchain - contract is still saved in database
+      }
+    }
+    
+    return mappedContract;
   }
 
   async getContract(id: string): Promise<Contract | null> {

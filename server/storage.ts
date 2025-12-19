@@ -1,6 +1,6 @@
-import { 
+import {
   users, properties, contracts, payments, documents, disputes, reviews,
-  type User, type InsertUser, 
+  type User, type InsertUser,
   type Property, type InsertProperty,
   type Contract, type InsertContract,
   type Payment, type InsertPayment,
@@ -18,7 +18,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
   updateUserVerificationStatus(id: string, status: "pending" | "verified" | "rejected"): Promise<User>;
-  
+
   // Property methods
   getProperties(filters?: {
     city?: string;
@@ -35,7 +35,7 @@ export interface IStorage {
   createProperty(property: InsertProperty): Promise<Property>;
   updateProperty(id: string, updates: Partial<InsertProperty>): Promise<Property>;
   deleteProperty(id: string): Promise<void>;
-  
+
   // Contract methods
   getContracts(filters?: {
     landlordId?: string;
@@ -47,7 +47,7 @@ export interface IStorage {
   getContract(id: string): Promise<Contract | undefined>;
   createContract(contract: InsertContract): Promise<Contract>;
   updateContract(id: string, updates: Partial<InsertContract>): Promise<Contract>;
-  
+
   // Payment methods
   getPayments(filters?: {
     contractId?: string;
@@ -60,7 +60,7 @@ export interface IStorage {
   getPayment(id: string): Promise<Payment | undefined>;
   createPayment(payment: InsertPayment): Promise<Payment>;
   updatePayment(id: string, updates: Partial<InsertPayment>): Promise<Payment>;
-  
+
   // Document methods
   getDocuments(filters?: {
     userId?: string;
@@ -71,7 +71,7 @@ export interface IStorage {
   getDocument(id: string): Promise<Document | undefined>;
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document>;
-  
+
   // Dispute methods
   getDisputes(filters?: {
     contractId?: string;
@@ -83,7 +83,7 @@ export interface IStorage {
   getDispute(id: string): Promise<Dispute | undefined>;
   createDispute(dispute: InsertDispute): Promise<Dispute>;
   updateDispute(id: string, updates: Partial<InsertDispute>): Promise<Dispute>;
-  
+
   // Review methods
   getReviews(filters?: {
     contractId?: string;
@@ -91,7 +91,7 @@ export interface IStorage {
     revieweeId?: string;
   }): Promise<Review[]>;
   createReview(review: InsertReview): Promise<Review>;
-  
+
   // Dashboard stats
   getLandlordStats(landlordId: string): Promise<{
     totalProperties: number;
@@ -163,9 +163,9 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<Property[]> {
     let query = db.select().from(properties);
-    
+
     const conditions = [];
-    
+
     if (filters?.city) {
       conditions.push(like(properties.city, `%${filters.city}%`));
     }
@@ -184,20 +184,20 @@ export class DatabaseStorage implements IStorage {
     if (filters?.isAvailable !== undefined) {
       conditions.push(eq(properties.isAvailable, filters.isAvailable));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
+
     query = query.orderBy(desc(properties.createdAt));
-    
+
     if (filters?.limit) {
       query = query.limit(filters.limit);
     }
     if (filters?.offset) {
       query = query.offset(filters.offset);
     }
-    
+
     return await query;
   }
 
@@ -242,9 +242,9 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<Contract[]> {
     let query = db.select().from(contracts);
-    
+
     const conditions = [];
-    
+
     if (filters?.landlordId) {
       conditions.push(eq(contracts.landlordId, filters.landlordId));
     }
@@ -254,20 +254,20 @@ export class DatabaseStorage implements IStorage {
     if (filters?.status) {
       conditions.push(eq(contracts.status, filters.status as any));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
+
     query = query.orderBy(desc(contracts.createdAt));
-    
+
     if (filters?.limit) {
       query = query.limit(filters.limit);
     }
     if (filters?.offset) {
       query = query.offset(filters.offset);
     }
-    
+
     return await query;
   }
 
@@ -303,9 +303,9 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<Payment[]> {
     let query = db.select().from(payments);
-    
+
     const conditions = [];
-    
+
     if (filters?.contractId) {
       conditions.push(eq(payments.contractId, filters.contractId));
     }
@@ -318,20 +318,20 @@ export class DatabaseStorage implements IStorage {
     if (filters?.status) {
       conditions.push(eq(payments.status, filters.status as any));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
+
     query = query.orderBy(desc(payments.createdAt));
-    
+
     if (filters?.limit) {
       query = query.limit(filters.limit);
     }
     if (filters?.offset) {
       query = query.offset(filters.offset);
     }
-    
+
     return await query;
   }
 
@@ -365,9 +365,9 @@ export class DatabaseStorage implements IStorage {
     type?: string;
   }): Promise<Document[]> {
     let query = db.select().from(documents);
-    
+
     const conditions = [];
-    
+
     if (filters?.userId) {
       conditions.push(eq(documents.userId, filters.userId));
     }
@@ -380,13 +380,13 @@ export class DatabaseStorage implements IStorage {
     if (filters?.type) {
       conditions.push(eq(documents.type, filters.type));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
+
     query = query.orderBy(desc(documents.createdAt));
-    
+
     return await query;
   }
 
@@ -421,9 +421,9 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<Dispute[]> {
     let query = db.select().from(disputes);
-    
+
     const conditions = [];
-    
+
     if (filters?.contractId) {
       conditions.push(eq(disputes.contractId, filters.contractId));
     }
@@ -433,20 +433,20 @@ export class DatabaseStorage implements IStorage {
     if (filters?.status) {
       conditions.push(eq(disputes.status, filters.status as any));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
+
     query = query.orderBy(desc(disputes.createdAt));
-    
+
     if (filters?.limit) {
       query = query.limit(filters.limit);
     }
     if (filters?.offset) {
       query = query.offset(filters.offset);
     }
-    
+
     return await query;
   }
 
@@ -479,9 +479,9 @@ export class DatabaseStorage implements IStorage {
     revieweeId?: string;
   }): Promise<Review[]> {
     let query = db.select().from(reviews);
-    
+
     const conditions = [];
-    
+
     if (filters?.contractId) {
       conditions.push(eq(reviews.contractId, filters.contractId));
     }
@@ -491,13 +491,13 @@ export class DatabaseStorage implements IStorage {
     if (filters?.revieweeId) {
       conditions.push(eq(reviews.revieweeId, filters.revieweeId));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
+
     query = query.orderBy(desc(reviews.createdAt));
-    
+
     return await query;
   }
 

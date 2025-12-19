@@ -23,6 +23,7 @@ import {
   IdCard
 } from "lucide-react";
 import { AnalyticsChart } from "@/components/analytics-chart";
+import { WeatherWidget } from "@/components/weather-widget";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -49,6 +50,44 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
+  // Fetch first property for weather widget (landlords only)
+  const { data: firstProperty } = useQuery({
+    queryKey: ['/api/properties', 'first', user?.id],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      // Use same approach as contracts page
+      const response = await fetch('/api/properties?landlordOnly=true', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) return null;
+      const properties = await response.json();
+      return properties[0] || null;
+    },
+    enabled: !!user && user.role === 'landlord',
+  });
+
+  // Fetch active contract property for tenants
+  const { data: tenantContracts } = useQuery({
+    queryKey: ['/api/contracts', 'active'],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/contracts', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) return [];
+      const contracts = await response.json();
+      return contracts.filter((c: any) => c.status === 'active');
+    },
+    enabled: !!user && user.role === 'tenant',
+  });
+
+  const tenantPropertyId = tenantContracts?.[0]?.propertyId;
+
+  // Early return after all hooks are called
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -64,7 +103,7 @@ export default function Dashboard() {
   }
 
   const renderLandlordDashboard = () => (
-    <div className="space-y-8">
+    <div className="space-y-8" data-dashboard-version="2025-v2-no-timeline">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700">
@@ -140,7 +179,7 @@ export default function Dashboard() {
         <AnalyticsChart type="properties" chartStyle="bar" />
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - UPDATED 2025-01-XX - NO CONTRACT TIMELINE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card>
@@ -174,7 +213,10 @@ export default function Dashboard() {
         </div>
 
         <div>
-          <Card>
+          {/* Weather Widget */}
+          <WeatherWidget propertyId={firstProperty?.id} city={firstProperty?.city} />
+
+          <Card className="mt-6">
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
@@ -284,61 +326,68 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions for Tenant */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Current Property</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats?.contractStatus === 'active' ? (
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">You have an active rental</p>
-                <p className="font-semibold text-gray-900 dark:text-white">Monthly Rent: ₨{Number(stats?.currentRent || 0).toLocaleString()}</p>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-500 dark:text-gray-400 mb-4">No active rental</p>
-                <Button asChild data-testid="button-search-properties">
-                  <Link href="/properties">Search Properties</Link>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Current Property</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stats?.contractStatus === 'active' ? (
+                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">You have an active rental</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">Monthly Rent: ₨{Number(stats?.currentRent || 0).toLocaleString()}</p>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">No active rental</p>
+                  <Button asChild data-testid="button-search-properties">
+                    <Link href="/properties">Search Properties</Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          {/* Weather Widget */}
+          <WeatherWidget propertyId={tenantPropertyId} />
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <Button className="w-full justify-start" asChild data-testid="button-pay-rent">
+                  <Link href="/payments">
+                    <CreditCard className="mr-3 h-4 w-4" />
+                    Pay Rent
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-search-properties">
+                  <Link href="/properties">
+                    <Home className="mr-3 h-4 w-4" />
+                    Search Properties
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-upload-documents">
+                  <Link href="/verification">
+                    <IdCard className="mr-3 h-4 w-4" />
+                    Upload Documents
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-disputes-tenant">
+                  <Link href="/disputes">
+                    <Gavel className="mr-3 h-4 w-4" />
+                    Disputes
+                  </Link>
                 </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <Button className="w-full justify-start" asChild data-testid="button-pay-rent">
-                <Link href="/payments">
-                  <CreditCard className="mr-3 h-4 w-4" />
-                  Pay Rent
-                </Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild data-testid="button-search-properties">
-                <Link href="/properties">
-                  <Home className="mr-3 h-4 w-4" />
-                  Search Properties
-                </Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild data-testid="button-upload-documents">
-                <Link href="/verification">
-                  <IdCard className="mr-3 h-4 w-4" />
-                  Upload Documents
-                </Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild data-testid="button-disputes-tenant">
-                <Link href="/disputes">
-                  <Gavel className="mr-3 h-4 w-4" />
-                  Disputes
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -500,3 +549,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

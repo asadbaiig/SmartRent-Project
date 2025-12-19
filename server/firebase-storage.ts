@@ -251,6 +251,42 @@ export class FirebaseStorage {
   async createContract(contractData: InsertContract): Promise<Contract> {
     const docRef = await addDoc(collection(db, 'contracts'), prepareForFirestore(contractData));
     const contract = await this.getContractById(docRef.id);
+    
+    // Store on blockchain if enabled
+    if (contract) {
+      const { blockchainService } = await import('./blockchain-service');
+      if (blockchainService.isEnabled()) {
+        try {
+          // Generate default blockchain addresses if not provided
+          const landlordAddress = contractData.landlordId || "0x0000000000000000000000000000000000000001";
+          const tenantAddress = contractData.tenantId || "0x0000000000000000000000000000000000000002";
+          
+          const blockchainHash = await blockchainService.createContract({
+            contractId: contract.id,
+            propertyId: contract.propertyId,
+            landlordAddress,
+            tenantAddress,
+            monthlyRent: contractData.monthlyRent.toString(),
+            securityDeposit: contractData.securityDeposit.toString(),
+            startDate: contract.startDate,
+            endDate: contract.endDate,
+            terms: contractData.terms || {},
+            status: 0 // draft
+          });
+          
+          if (blockchainHash) {
+            // Update the contract with blockchain hash
+            await updateDoc(docRef, { blockchainHash });
+            contract.blockchainHash = blockchainHash;
+            console.log(`[Firebase] Contract ${contract.id} stored on blockchain: ${blockchainHash}`);
+          }
+        } catch (blockchainError: any) {
+          console.error(`[Firebase] Failed to store contract ${contract.id} on blockchain:`, blockchainError.message);
+          // Don't fail the contract creation if blockchain fails
+        }
+      }
+    }
+    
     return contract!;
   }
 
@@ -333,6 +369,11 @@ export class FirebaseStorage {
 
   async getContract(id: string): Promise<Contract | null> {
     return this.getContractById(id);
+  }
+
+  async deleteContract(id: string): Promise<void> {
+    const docRef = doc(db, 'contracts', id);
+    await deleteDoc(docRef);
   }
 
   // Payment operations

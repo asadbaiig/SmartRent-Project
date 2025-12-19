@@ -145,8 +145,16 @@ export const auth = {
       const result = await signInWithPopup(firebaseAuth, googleProvider);
       const user = result.user;
       
+      if (!user || !user.email) {
+        throw new Error('Failed to get user information from Google');
+      }
+      
       // Get ID token
       const idToken = await user.getIdToken();
+      
+      if (!idToken) {
+        throw new Error('Failed to get authentication token');
+      }
       
       // Send user data, token, and role to backend
       const response = await fetch(`${API_BASE}/auth/google/register`, {
@@ -168,7 +176,7 @@ export const auth = {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ message: 'Google registration failed' }));
         throw new Error(error.message || 'Google registration failed');
       }
 
@@ -176,11 +184,13 @@ export const auth = {
       localStorage.setItem('token', data.token);
       return data;
     } catch (error: any) {
-      // Handle popup closed by user
-      if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Sign-in popup was closed');
+      console.error('Google registration error:', error);
+      // Handle Firebase auth errors
+      if (error.code) {
+        throw error; // Pass through Firebase errors with their codes
       }
-      throw error;
+      // Handle other errors
+      throw new Error(error.message || 'Google registration failed');
     }
   },
 };

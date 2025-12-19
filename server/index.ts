@@ -1,3 +1,6 @@
+// MUST be first - load environment variables before anything else
+import 'dotenv/config';
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -40,13 +43,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Load environment variables from .env file (optional)
-  try {
-    await import('dotenv/config');
-  } catch {
-    // dotenv is optional - MongoDB will use default connection string
-  }
-
   // Initialize MongoDB connection (non-blocking)
   log('[Server] Attempting to connect to MongoDB...');
   connectMongoDB().then(connected => {

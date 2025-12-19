@@ -79,9 +79,24 @@ export default function Register() {
       });
       setLocation("/verification");
     } catch (error: any) {
+      console.error("Google sign-up error:", error);
+      let errorMessage = "Google registration failed";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = "Sign-in popup was closed. Please try again.";
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = "Popup was blocked by your browser. Please allow popups for this site and try again.";
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      } else if (error.code) {
+        errorMessage = `Authentication error: ${error.code}`;
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Google registration failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

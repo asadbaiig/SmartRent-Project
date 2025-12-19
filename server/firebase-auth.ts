@@ -27,7 +27,7 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
     // Simplified token validation: we treat token as the Firebase UID
     // In production, verify the Firebase ID token using Firebase Admin SDK.
     const user = await firebaseStorage.getUserById(idToken);
-    
+
     if (!user) {
       return res.status(403).json({ message: 'User not found' });
     }
@@ -39,7 +39,7 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
       fullName: user.fullName,
       verificationStatus: user.verificationStatus
     };
-    
+
     next();
   } catch (error) {
     console.error('Authentication error:', error);
@@ -107,7 +107,7 @@ export const firebaseAuth = {
 
       // Get user data from our database
       const dbUser = await firebaseStorage.getUserById(user.uid);
-      
+
       if (!dbUser) {
         throw new Error('User not found in database');
       }
@@ -143,10 +143,10 @@ export const firebaseAuth = {
       // Verify the ID token is from Google (in production, verify with Firebase Admin SDK)
       // For now, we'll trust the token from the client
       // The client will send us the ID token after Google sign-in
-      
+
       // Note: In a real implementation, you should verify the ID token server-side
       // using Firebase Admin SDK. For now, we'll rely on the client to provide valid tokens.
-      
+
       // Since we can't verify the token here without Admin SDK, we'll need to handle
       // Google auth differently - the client will authenticate with Firebase and send us
       // the user info which we'll then sync with our database
@@ -161,7 +161,7 @@ export const firebaseAuth = {
     try {
       // Check if user exists in our database
       let dbUser = await firebaseStorage.getUserById(firebaseUser.uid);
-      
+
       if (!dbUser) {
         // Create new user from Google account
         const cleanUserData = {

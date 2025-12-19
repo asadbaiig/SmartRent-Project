@@ -1,0 +1,22 @@
+# Hardhat files
+cache/
+artifacts/
+typechain-types/
+
+# Environment
+.env
+.env.local
+
+# Node modules
+node_modules/
+
+# Coverage
+coverage/
+coverage.json
+
+# Build info
+*.dbg.json
+
+
+
+

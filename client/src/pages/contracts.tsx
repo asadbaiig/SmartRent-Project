@@ -10,13 +10,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { PasswordConfirmDialog } from "@/components/password-confirm-dialog";
+import { ContractDocumentView } from "@/components/contract-document-view";
+import { SignaturePad } from "@/components/signature-pad";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { 
   FileText, 
   Plus, 
   Eye, 
-  Download, 
   Clock, 
   CheckCircle, 
   XCircle,
@@ -24,7 +26,8 @@ import {
   DollarSign,
   Bot,
   Shield,
-  Gavel
+  Gavel,
+  Trash2
 } from "lucide-react";
 
 const fadeInUp = {
@@ -42,6 +45,10 @@ export default function Contracts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("list");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contractToDelete, setContractToDelete] = useState<string | null>(null);
+  const [viewingContract, setViewingContract] = useState<any | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   // Fetch contracts
   const { data: contracts = [], isLoading } = useQuery({
@@ -85,6 +92,79 @@ export default function Contracts() {
     }
   };
 
+  const handleDeleteClick = (contractId: string) => {
+    setContractToDelete(contractId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async (password: string) => {
+    if (!contractToDelete) {
+      console.error('No contract to delete');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    
+    console.log('=== Starting delete for contract:', contractToDelete);
+    console.log('Current user:', user);
+    
+    try {
+      const response = await fetch(`/api/contracts/${contractToDelete}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      console.log('Delete response status:', response.status);
+      console.log('Delete response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Delete error response:', errorText);
+        let errorMessage = 'Failed to delete contract';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.message || errorMessage;
+        } catch {}
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('Delete successful, result:', result);
+
+      // Close dialog first
+      setDeleteDialogOpen(false);
+      setContractToDelete(null);
+
+      // Show success message
+      toast({
+        title: "Success",
+        description: "Contract deleted successfully",
+      });
+
+      // Force refetch and wait for it
+      console.log('Forcing refetch...');
+      await queryClient.refetchQueries({ 
+        queryKey: ['/api/contracts'],
+        exact: true 
+      });
+      console.log('Refetch complete');
+      
+    } catch (error: any) {
+      console.error('Delete error caught:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete contract",
+        variant: "destructive",
+      });
+      // Re-throw error so the dialog can display it
+      throw error;
+    }
+  };
+
   const ContractList = () => (
     <motion.div className="space-y-6" initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}>
       {/* Header */}
@@ -95,12 +175,6 @@ export default function Contracts() {
             Manage your rental agreements
           </p>
         </div>
-        {user?.role === 'landlord' && (
-          <Button onClick={() => setActiveTab("create")} data-testid="button-create-contract">
-            <Plus className="mr-2 h-4 w-4" />
-            Create Contract
-          </Button>
-        )}
       </motion.div>
 
       {/* Contracts Grid */}
@@ -165,17 +239,38 @@ export default function Contracts() {
                     <span className="text-gray-600 dark:text-gray-400">
                       {user?.role === 'landlord' ? 'Tenant:' : 'Landlord:'}
                     </span>
-                    <span className="font-semibold">Not loaded</span>
+                    <span className="font-semibold">
+                      {user?.role === 'landlord' 
+                        ? (contract.tenantEmail || 'Loading...') 
+                        : (contract.landlordEmail || 'Loading...')}
+                    </span>
                   </div>
                   
                   <div className="flex space-x-2 pt-3">
-                    <Button size="sm" variant="outline" className="flex-1" data-testid={`button-view-${contract.id}`}>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="flex-1" 
+                      data-testid={`button-view-${contract.id}`}
+                      onClick={() => {
+                        setViewingContract(contract);
+                        setIsViewDialogOpen(true);
+                      }}
+                    >
                       <Eye className="mr-1 h-3 w-3" />
                       View
                     </Button>
-                    <Button size="sm" variant="outline" data-testid={`button-download-${contract.id}`}>
-                      <Download className="h-3 w-3" />
-                    </Button>
+                    {user?.role === 'landlord' && contract.landlordId === user.id && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleDeleteClick(contract.id)}
+                        data-testid={`button-delete-${contract.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -191,13 +286,38 @@ export default function Contracts() {
     const [formData, setFormData] = useState({
       propertyId: "",
       tenantEmail: "",
+      tenantName: "",
       monthlyRent: "",
       securityDeposit: "",
-      startDate: "",
       duration: "12",
       terms: "",
+      landlordCNIC: "",
+      tenantCNIC: "",
     });
+    const [landlordSignature, setLandlordSignature] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Format CNIC input (Pakistani format: XXXXX-XXXXXXX-X)
+    const formatCNIC = (value: string) => {
+      // Remove all non-digits
+      const digits = value.replace(/\D/g, '');
+      
+      // Format as XXXXX-XXXXXXX-X
+      if (digits.length <= 5) {
+        return digits;
+      } else if (digits.length <= 12) {
+        return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+      } else {
+        return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12, 13)}`;
+      }
+    };
+
+    // Validate CNIC format
+    const validateCNIC = (cnic: string) => {
+      if (!cnic) return false; // Required field
+      const cleaned = cnic.replace(/\D/g, '');
+      return cleaned.length === 13;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -230,10 +350,57 @@ export default function Contracts() {
         return;
       }
 
-      if (!formData.startDate) {
+      // Validate required fields
+      if (!formData.tenantName) {
         toast({
           title: "Error",
-          description: "Please select a start date",
+          description: "Please enter tenant name",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!formData.landlordCNIC) {
+        toast({
+          title: "Error",
+          description: "Please enter landlord CNIC",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!formData.tenantCNIC) {
+        toast({
+          title: "Error",
+          description: "Please enter tenant CNIC",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!landlordSignature) {
+        toast({
+          title: "Error",
+          description: "Please provide your signature",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate CNIC formats
+      if (!validateCNIC(formData.landlordCNIC)) {
+        toast({
+          title: "Error",
+          description: "Landlord CNIC must be 13 digits (format: XXXXX-XXXXXXX-X)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!validateCNIC(formData.tenantCNIC)) {
+        toast({
+          title: "Error",
+          description: "Tenant CNIC must be 13 digits (format: XXXXX-XXXXXXX-X)",
           variant: "destructive",
         });
         return;
@@ -262,18 +429,29 @@ export default function Contracts() {
           throw new Error('The specified user is not a tenant');
         }
 
-        // Calculate end date
-        const endDate = new Date(formData.startDate);
-        endDate.setMonth(endDate.getMonth() + parseInt(formData.duration));
+        // Build terms object
+        const terms: any = {};
+        if (formData.terms) {
+          terms.customTerms = formData.terms;
+        }
+        if (formData.landlordCNIC) {
+          terms.landlordCNIC = formData.landlordCNIC;
+        }
+        if (formData.tenantCNIC) {
+          terms.tenantCNIC = formData.tenantCNIC;
+        }
+        if (formData.tenantName) {
+          terms.tenantName = formData.tenantName;
+        }
 
         const contractData = {
           propertyId: formData.propertyId,
           tenantId: tenant.id,
-          monthlyRent: parseFloat(formData.monthlyRent),
-          securityDeposit: parseFloat(formData.securityDeposit),
-          startDate: new Date(formData.startDate).toISOString(),
-          endDate: endDate.toISOString(),
-          terms: formData.terms ? { customTerms: formData.terms } : undefined,
+          monthlyRent: formData.monthlyRent, // Keep as string for decimal type
+          securityDeposit: formData.securityDeposit, // Keep as string for decimal type
+          duration: parseInt(formData.duration), // Store duration in months
+          terms: Object.keys(terms).length > 0 ? terms : undefined,
+          digitalSignature: landlordSignature ? { landlord: landlordSignature } : undefined,
         };
 
         const response = await fetch('/api/contracts', {
@@ -302,12 +480,15 @@ export default function Contracts() {
         setFormData({
           propertyId: "",
           tenantEmail: "",
+          tenantName: "",
           monthlyRent: "",
           securityDeposit: "",
-          startDate: "",
           duration: "12",
           terms: "",
+          landlordCNIC: "",
+          tenantCNIC: "",
         });
+        setLandlordSignature(null);
         
         setActiveTab("list");
       } catch (error: any) {
@@ -335,12 +516,12 @@ export default function Contracts() {
         </motion.div>
 
         <motion.div 
-          className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:items-stretch"
           variants={containerStagger}
         >
           {/* Contract Form */}
-          <motion.div variants={fadeInUp}>
-          <Card>
+          <motion.div variants={fadeInUp} className="flex">
+          <Card className="flex-1">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <span>Contract Details</span>
@@ -376,6 +557,22 @@ export default function Contracts() {
                     required
                     data-testid="input-tenant-email"
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="tenantName">Tenant Name</Label>
+                  <Input
+                    id="tenantName"
+                    type="text"
+                    value={formData.tenantName}
+                    onChange={(e) => updateField('tenantName', e.target.value)}
+                    placeholder="Enter tenant's full name"
+                    required
+                    data-testid="input-tenant-name"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Full name as it should appear on the contract document
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -420,35 +617,63 @@ export default function Contracts() {
                   </div>
                 </div>
 
+                <div>
+                  <Label htmlFor="duration">Duration (Months)</Label>
+                  <Select value={formData.duration} onValueChange={(value) => updateField('duration', value)}>
+                    <SelectTrigger data-testid="select-duration">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="6">6 months</SelectItem>
+                      <SelectItem value="12">12 months</SelectItem>
+                      <SelectItem value="24">24 months</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="startDate">Start Date</Label>
+                    <Label htmlFor="landlordCNIC">Landlord CNIC</Label>
                     <Input
-                      id="startDate"
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => updateField('startDate', e.target.value)}
+                      id="landlordCNIC"
+                      type="text"
+                      value={formData.landlordCNIC}
+                      onChange={(e) => {
+                        const formatted = formatCNIC(e.target.value);
+                        setFormData(prev => ({ ...prev, landlordCNIC: formatted }));
+                      }}
+                      placeholder="37405-1234567-1"
+                      maxLength={15}
                       required
-                      data-testid="input-start-date"
+                      data-testid="input-landlord-cnic"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Format: XXXXX-XXXXXXX-X
+                    </p>
                   </div>
                   <div>
-                    <Label htmlFor="duration">Duration (Months)</Label>
-                    <Select value={formData.duration} onValueChange={(value) => updateField('duration', value)}>
-                      <SelectTrigger data-testid="select-duration">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="6">6 months</SelectItem>
-                        <SelectItem value="12">12 months</SelectItem>
-                        <SelectItem value="24">24 months</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="tenantCNIC">Tenant CNIC</Label>
+                    <Input
+                      id="tenantCNIC"
+                      type="text"
+                      value={formData.tenantCNIC}
+                      onChange={(e) => {
+                        const formatted = formatCNIC(e.target.value);
+                        setFormData(prev => ({ ...prev, tenantCNIC: formatted }));
+                      }}
+                      placeholder="37405-1234567-1"
+                      maxLength={15}
+                      required
+                      data-testid="input-tenant-cnic"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Format: XXXXX-XXXXXXX-X
+                    </p>
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="terms">Additional Terms</Label>
+                  <Label htmlFor="terms">Additional Terms (Optional)</Label>
                   <Textarea
                     id="terms"
                     value={formData.terms}
@@ -457,6 +682,17 @@ export default function Contracts() {
                     rows={4}
                     data-testid="textarea-terms"
                   />
+                </div>
+
+                <div>
+                  <SignaturePad
+                    label="Landlord Signature"
+                    onSignatureChange={setLandlordSignature}
+                    initialSignature={landlordSignature}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Sign above to add your signature to the contract document
+                  </p>
                 </div>
 
                 <div className="flex space-x-4">
@@ -485,102 +721,67 @@ export default function Contracts() {
           </motion.div>
 
           {/* Features Sidebar */}
-          <motion.div className="space-y-6" variants={containerStagger}>
+          <motion.div className="space-y-6 flex flex-col" variants={containerStagger}>
             {/* Blockchain Security */}
-            <motion.div variants={fadeInUp}>
-            <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700">
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-primary-500 rounded-lg flex items-center justify-center">
-                    <Shield className="text-white h-6 w-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-semibold text-primary-900 dark:text-primary-100 mb-2">
-                      Blockchain Security
-                    </h4>
-                    <p className="text-primary-700 dark:text-primary-200 text-sm mb-3">
-                      Your contract will be stored on a secure blockchain, making it tamper-proof and legally binding.
-                    </p>
-                    <ul className="text-primary-700 dark:text-primary-200 text-sm space-y-1">
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3 text-success-600" />
-                        Immutable record
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3 text-success-600" />
-                        Digital signatures
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3 text-success-600" />
-                        Automated compliance
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div variants={fadeInUp} className="flex-1">
+              <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700 h-full flex flex-col">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Shield className="h-5 w-5" />
+                    <span>Blockchain Security</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <p className="text-primary-700 dark:text-primary-200 text-sm mb-4">
+                    Your contract will be stored on a secure blockchain, making it tamper-proof and legally binding.
+                  </p>
+                  <ul className="text-primary-700 dark:text-primary-200 text-sm space-y-2">
+                    <li className="flex items-center">
+                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
+                      Immutable record
+                    </li>
+                    <li className="flex items-center">
+                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
+                      Digital signatures
+                    </li>
+                    <li className="flex items-center">
+                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
+                      Automated compliance
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
             </motion.div>
 
             {/* Legal Compliance */}
-            <motion.div variants={fadeInUp}>
-            <Card className="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900 dark:to-success-800 border-success-200 dark:border-success-700">
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-success-500 rounded-lg flex items-center justify-center">
-                    <Gavel className="text-white h-6 w-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-semibold text-success-900 dark:text-success-100 mb-2">
-                      Legal Compliance
-                    </h4>
-                    <p className="text-success-700 dark:text-success-200 text-sm mb-3">
-                      Automatically ensures compliance with Pakistani rental laws and regulations.
-                    </p>
-                    <ul className="text-success-700 dark:text-success-200 text-sm space-y-1">
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3 text-success-600" />
-                        Standard clauses included
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3 text-success-600" />
-                        Legal requirement validation
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3 text-success-600" />
-                        Court-admissible format
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            </motion.div>
-
-            {/* Contract Templates */}
-            <motion.div variants={fadeInUp}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Contract Templates</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { icon: "🏠", title: "Residential Apartment" },
-                  { icon: "🏢", title: "Commercial Space" },
-                  { icon: "💼", title: "Office Space" }
-                ].map((template) => (
-                  <div 
-                    key={template.title}
-                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">{template.icon}</span>
-                      <span className="text-gray-900 dark:text-white">{template.title}</span>
-                    </div>
-                    <span className="text-gray-400">→</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <motion.div variants={fadeInUp} className="flex-1">
+              <Card className="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900 dark:to-success-800 border-success-200 dark:border-success-700 h-full flex flex-col">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Gavel className="h-5 w-5" />
+                    <span>Legal Compliance</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <p className="text-success-700 dark:text-success-200 text-sm mb-4">
+                    Automatically ensures compliance with Pakistani rental laws and regulations.
+                  </p>
+                  <ul className="text-success-700 dark:text-success-200 text-sm space-y-2">
+                    <li className="flex items-center">
+                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
+                      Standard clauses included
+                    </li>
+                    <li className="flex items-center">
+                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
+                      Legal requirement validation
+                    </li>
+                    <li className="flex items-center">
+                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
+                      Court-admissible format
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
             </motion.div>
           </motion.div>
         </motion.div>
@@ -603,28 +804,47 @@ export default function Contracts() {
   }
 
   return (
-    <motion.div 
-      className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8"
-      initial="hidden"
-      animate="visible"
-      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div variants={fadeInUp}>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="list" data-testid="tab-list">My Contracts</TabsTrigger>
+    <>
+      <motion.div 
+        className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8"
+        initial="hidden"
+        animate="visible"
+        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div variants={fadeInUp}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="list" data-testid="tab-list">My Contracts</TabsTrigger>
+                {user?.role === 'landlord' && (
+                  <TabsTrigger value="create" data-testid="tab-create">Create Contract</TabsTrigger>
+                )}
+              </TabsList>
+              <TabsContent value="list">{ContractList()}</TabsContent>
               {user?.role === 'landlord' && (
-                <TabsTrigger value="create" data-testid="tab-create">Create Contract</TabsTrigger>
+                <TabsContent value="create">{CreateContract()}</TabsContent>
               )}
-            </TabsList>
-            <TabsContent value="list">{ContractList()}</TabsContent>
-            {user?.role === 'landlord' && (
-              <TabsContent value="create">{CreateContract()}</TabsContent>
-            )}
-          </Tabs>
-        </motion.div>
-      </div>
-    </motion.div>
+            </Tabs>
+          </motion.div>
+        </div>
+      </motion.div>
+
+      <PasswordConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Contract"
+        description="This action cannot be undone. Please enter your password to confirm deletion of this contract."
+        confirmButtonText="Delete Contract"
+      />
+
+      {viewingContract && (
+        <ContractDocumentView
+          contract={viewingContract}
+          open={isViewDialogOpen}
+          onOpenChange={setIsViewDialogOpen}
+        />
+      )}
+    </>
   );
 }

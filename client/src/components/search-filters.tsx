@@ -66,7 +66,7 @@ export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersPr
               <Label htmlFor="property-type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Type
               </Label>
-              <Select value={filters.propertyType} onValueChange={(value) => updateFilter('propertyType', value)}>
+              <Select value={filters.propertyType || 'all'} onValueChange={(value) => updateFilter('propertyType', value === 'all' ? '' : value)}>
                 <SelectTrigger data-testid="select-property-type">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
@@ -85,10 +85,15 @@ export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersPr
               <Label htmlFor="budget" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Budget (PKR)
               </Label>
-              <Select value={`${filters.minRent}-${filters.maxRent}`} onValueChange={(value) => {
-                const [min, max] = value.split('-');
-                updateFilter('minRent', min);
-                updateFilter('maxRent', max);
+              <Select value={filters.minRent && filters.maxRent ? `${filters.minRent}-${filters.maxRent}` : 'any-any'} onValueChange={(value) => {
+                if (value === 'any-any') {
+                  updateFilter('minRent', '');
+                  updateFilter('maxRent', '');
+                } else {
+                  const [min, max] = value.split('-');
+                  updateFilter('minRent', min);
+                  updateFilter('maxRent', max);
+                }
               }}>
                 <SelectTrigger data-testid="select-budget">
                   <SelectValue placeholder="Any Budget" />
@@ -108,7 +113,7 @@ export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersPr
               <Label htmlFor="bedrooms" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Bedrooms
               </Label>
-              <Select value={filters.bedrooms} onValueChange={(value) => updateFilter('bedrooms', value)}>
+              <Select value={filters.bedrooms || 'any'} onValueChange={(value) => updateFilter('bedrooms', value === 'any' ? '' : value)}>
                 <SelectTrigger data-testid="select-bedrooms">
                   <SelectValue placeholder="Any" />
                 </SelectTrigger>
@@ -116,7 +121,7 @@ export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersPr
                   <SelectItem value="any">Any</SelectItem>
                   <SelectItem value="1">1</SelectItem>
                   <SelectItem value="2">2</SelectItem>
-                  <SelectItem value="3">3+</SelectItem>
+                  <SelectItem value="3+">3+</SelectItem>
                 </SelectContent>
               </Select>
             </div>

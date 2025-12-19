@@ -74,3 +74,13 @@ Write-Host ""
 Write-Host "To test payments, use Stripe test card: 4242 4242 4242 4242" -ForegroundColor Cyan
 Write-Host ""
 
+
+
+
+
+
+
+
+
+
+

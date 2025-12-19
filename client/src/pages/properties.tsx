@@ -86,13 +86,29 @@ export default function Properties() {
     setViewMode(viewParam === 'map' ? 'map' : 'list');
   }, [location]); // Only depend on location to avoid loops
 
-  // Build query parameters
+  // Build query parameters - only include non-empty, non-default values
   const queryParams = new URLSearchParams();
-  if (filters.city) queryParams.set('city', filters.city);
-  if (filters.propertyType) queryParams.set('propertyType', filters.propertyType);
-  if (filters.minRent) queryParams.set('minRent', filters.minRent);
-  if (filters.maxRent) queryParams.set('maxRent', filters.maxRent);
-  if (filters.bedrooms) queryParams.set('bedrooms', filters.bedrooms);
+  if (filters.city && filters.city.trim()) {
+    queryParams.set('city', filters.city.trim());
+  }
+  if (filters.propertyType && filters.propertyType !== 'all') {
+    queryParams.set('propertyType', filters.propertyType);
+  }
+  if (filters.minRent && filters.minRent !== 'any') {
+    queryParams.set('minRent', filters.minRent);
+  }
+  if (filters.maxRent && filters.maxRent !== 'any') {
+    queryParams.set('maxRent', filters.maxRent);
+  }
+  if (filters.bedrooms && filters.bedrooms !== 'any') {
+    // Handle "3+" case - send as "3" and we'll filter >= 3 on backend
+    if (filters.bedrooms === '3+') {
+      queryParams.set('bedrooms', '3');
+      queryParams.set('bedroomsMin', '3');
+    } else {
+      queryParams.set('bedrooms', filters.bedrooms);
+    }
+  }
   queryParams.set('limit', pageSize.toString());
   queryParams.set('offset', (currentPage * pageSize).toString());
 

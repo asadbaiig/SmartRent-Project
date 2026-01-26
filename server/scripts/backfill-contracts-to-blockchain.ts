@@ -20,7 +20,7 @@ console.log(`[Backfill] RENTAL_CONTRACT_ADDRESS: ${process.env.RENTAL_CONTRACT_A
 import { mongoDBStorage } from '../mongodb-storage.js';
 import { firebaseStorage } from '../firebase-storage.js';
 import { blockchainService } from '../blockchain-service.js';
-import { connectMongoDB, isMongoDBConnected } from '../mongodb.js';
+import { connectMongoDB, isMongoDBConnected, disconnectMongoDB } from '../mongodb.js';
 
 async function backfillContracts() {
   console.log('🔄 Starting contract backfill to blockchain...\n');
@@ -89,6 +89,20 @@ async function backfillContracts() {
     let successCount = 0;
     let errorCount = 0;
 
+    // Check if contract factory is deployed first
+    try {
+      const isDeployed = await blockchainService.isContractDeployed();
+      if (!isDeployed) {
+        console.error("\n❌ RentalContract factory is not deployed!");
+        console.error("   Please deploy the contract first:");
+        console.error("   npm run blockchain:deploy\n");
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error("\n❌ Error checking contract deployment:", error);
+      process.exit(1);
+    }
+
     for (const contract of contracts) {
       // Check if contract actually exists on blockchain
       let shouldSkip = false;
@@ -102,7 +116,12 @@ async function backfillContracts() {
           } else {
             console.log(`⚠️  Contract ${contract.id} has hash but not found on blockchain - will re-backfill`);
           }
-        } catch (error) {
+        } catch (error: any) {
+          // If error is about factory not being deployed, exit
+          if (error.message?.includes("not deployed")) {
+            console.error(`\n❌ ${error.message}`);
+            process.exit(1);
+          }
           // Contract doesn't exist on blockchain, re-backfill it
           console.log(`⚠️  Contract ${contract.id} has hash but not found on blockchain - will re-backfill`);
         }
@@ -165,14 +184,33 @@ async function backfillContracts() {
 
   } catch (error: any) {
     console.error('❌ Backfill failed:', error);
-    process.exit(1);
+    throw error;
+  } finally {
+    // Always disconnect MongoDB before exiting
+    if (await isMongoDBConnected()) {
+      await disconnectMongoDB();
+    }
+    // Cleanup blockchain service connections
+    try {
+      await blockchainService.cleanup();
+    } catch (cleanupError) {
+      // Ignore cleanup errors
+    }
   }
 }
 
 backfillContracts()
-  .then(() => process.exit(0))
+  .then(() => {
+    // Small delay to ensure cleanup completes, then exit
+    setTimeout(() => {
+      process.exit(0);
+    }, 300);
+  })
   .catch((error) => {
     console.error(error);
-    process.exit(1);
+    // Small delay to ensure cleanup completes, then exit
+    setTimeout(() => {
+      process.exit(1);
+    }, 300);
   });
 

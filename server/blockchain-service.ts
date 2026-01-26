@@ -62,6 +62,12 @@ export class BlockchainService {
       console.log("[Blockchain] BLOCKCHAIN_PRIVATE_KEY:", process.env.BLOCKCHAIN_PRIVATE_KEY ? "SET" : "NOT SET");
       console.log("[Blockchain] RENTAL_CONTRACT_ADDRESS:", process.env.RENTAL_CONTRACT_ADDRESS);
       
+      // Check if blockchain is explicitly disabled
+      if (process.env.BLOCKCHAIN_ENABLED === 'false' || process.env.BLOCKCHAIN_ENABLED === '0') {
+        console.warn("[Blockchain] BLOCKCHAIN_ENABLED is set to false. Blockchain features disabled.");
+        return;
+      }
+      
       const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
       const privateKey = process.env.BLOCKCHAIN_PRIVATE_KEY;
       this.contractAddress = process.env.RENTAL_CONTRACT_ADDRESS || null;
@@ -103,6 +109,30 @@ export class BlockchainService {
   public isEnabled(): boolean {
     this.ensureInitialized();
     return this.enabled;
+  }
+
+  /**
+   * Cleanup method to properly close all connections
+   * Call this before process exit to prevent assertion errors
+   */
+  public async cleanup(): Promise<void> {
+    try {
+      if (this.provider) {
+        // Remove all listeners to prevent hanging connections
+        if ('removeAllListeners' in this.provider && typeof this.provider.removeAllListeners === 'function') {
+          this.provider.removeAllListeners();
+        }
+        // Destroy the provider to close all connections (if method exists)
+        if ('destroy' in this.provider && typeof (this.provider as any).destroy === 'function') {
+          await (this.provider as any).destroy();
+        }
+        this.provider = null;
+      }
+      this.wallet = null;
+      this.contract = null;
+    } catch (error) {
+      // Ignore cleanup errors
+    }
   }
 
   /**
@@ -237,12 +267,35 @@ export class BlockchainService {
   }
 
   /**
+   * Check if the contract factory is deployed
+   */
+  async isContractDeployed(): Promise<boolean> {
+    this.ensureInitialized();
+    if (!this.enabled || !this.provider || !this.contractAddress) {
+      return false;
+    }
+
+    try {
+      const code = await this.provider.getCode(this.contractAddress);
+      return code !== "0x" && code !== null;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
    * Get contract from blockchain
    */
   async getContract(contractId: string): Promise<any> {
     this.ensureInitialized();
     if (!this.enabled || !this.contract) {
       throw new Error("Blockchain service not enabled");
+    }
+
+    // Check if contract factory is deployed
+    const isDeployed = await this.isContractDeployed();
+    if (!isDeployed) {
+      throw new Error("RentalContract factory is not deployed. Please run: npm run blockchain:deploy");
     }
 
     try {
@@ -261,6 +314,10 @@ export class BlockchainService {
         createdAt: new Date(Number(contractData[9]) * 1000),
       };
     } catch (error: any) {
+      // If error is about contract not existing, that's expected for new contracts
+      if (error.message?.includes("Contract does not exist") || error.message?.includes("contractExists")) {
+        return null;
+      }
       console.error("[Blockchain] Error getting contract:", error);
       throw new Error(`Blockchain error: ${error.message}`);
     }

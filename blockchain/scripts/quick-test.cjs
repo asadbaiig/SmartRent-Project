@@ -44,13 +44,28 @@ async function main() {
       console.log("⚠️  Contract exists but can't interact:");
       console.log(`   ${error.message}\n`);
     }
+  } finally {
+    // Close the provider connection to prevent assertion errors
+    try {
+      if (hre.ethers && hre.ethers.provider) {
+        await hre.ethers.provider.destroy();
+      }
+    } catch (err) {
+      // Ignore errors during cleanup
+    }
   }
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(() => {
+    // Give a small delay to ensure cleanup completes
+    setTimeout(() => process.exit(0), 100);
+  })
   .catch((error) => {
     console.error(error);
-    process.exitCode = 1;
+    setTimeout(() => {
+      process.exitCode = 1;
+      process.exit(1);
+    }, 100);
   });
 

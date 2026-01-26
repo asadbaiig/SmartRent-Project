@@ -25,13 +25,39 @@ async function main() {
   return address;
 }
 
+async function cleanup() {
+  try {
+    const { ethers } = hre;
+    if (ethers && ethers.provider) {
+      // Remove all listeners to prevent hanging connections
+      if (ethers.provider.removeAllListeners) {
+        ethers.provider.removeAllListeners();
+      }
+      // Destroy provider if method exists
+      if (ethers.provider.destroy && typeof ethers.provider.destroy === 'function') {
+        await ethers.provider.destroy();
+      }
+    }
+  } catch (cleanupError) {
+    // Ignore cleanup errors
+  }
+}
+
 main()
-  .then((address) => {
+  .then(async (address) => {
     console.log("\nDeployment successful!");
-    process.exit(0);
+    await cleanup();
+    // Small delay to ensure cleanup completes, then exit
+    setTimeout(() => {
+      process.exit(0);
+    }, 200);
   })
-  .catch((error) => {
+  .catch(async (error) => {
     console.error("Deployment failed:", error);
-    process.exitCode = 1;
+    await cleanup();
+    // Small delay to ensure cleanup completes, then exit
+    setTimeout(() => {
+      process.exit(1);
+    }, 200);
   });
 

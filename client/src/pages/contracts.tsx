@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PasswordConfirmDialog } from "@/components/password-confirm-dialog";
 import { ContractDocumentView } from "@/components/contract-document-view";
 import { SignaturePad } from "@/components/signature-pad";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { 
   FileText, 
@@ -44,11 +44,21 @@ export default function Contracts() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [location] = useLocation();
   const [activeTab, setActiveTab] = useState("list");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [contractToDelete, setContractToDelete] = useState<string | null>(null);
   const [viewingContract, setViewingContract] = useState<any | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+
+  // Set active tab based on current route
+  useEffect(() => {
+    if (location === "/contracts/new" && user?.role === "landlord") {
+      setActiveTab("create");
+    } else if (location === "/contracts") {
+      setActiveTab("list");
+    }
+  }, [location, user?.role]);
 
   // Fetch contracts
   const { data: contracts = [], isLoading } = useQuery({

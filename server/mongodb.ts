@@ -6,6 +6,7 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/smartr
 let isConnected = false;
 let connectionAttempted = false;
 let mongooseConnection: any;
+let isDisconnecting = false; // Flag to prevent duplicate disconnect logs
 
 async function getMongoose() {
   if (!mongoose) {
@@ -55,10 +56,11 @@ export function isMongoDBConnected(): boolean {
 }
 
 export async function disconnectMongoDB(): Promise<void> {
-  if (!isConnected || !mongoose) {
+  if (!isConnected || !mongoose || isDisconnecting) {
     return;
   }
 
+  isDisconnecting = true;
   try {
     const mongooseInstance = await getMongoose();
     await mongooseInstance.disconnect();
@@ -67,7 +69,13 @@ export async function disconnectMongoDB(): Promise<void> {
     console.log('[MongoDB] Disconnected');
   } catch (error) {
     console.error('[MongoDB] Disconnection error:', error);
+    isDisconnecting = false;
     throw error;
+  } finally {
+    // Reset flag after a short delay to allow event handlers to process
+    setTimeout(() => {
+      isDisconnecting = false;
+    }, 100);
   }
 }
 
@@ -80,7 +88,10 @@ function setupEventHandlers() {
     });
 
     mongooseConnection.on('disconnected', () => {
-      console.log('[MongoDB] Disconnected');
+      // Only log if we're not explicitly disconnecting (to avoid duplicate messages)
+      if (!isDisconnecting) {
+        console.log('[MongoDB] Disconnected');
+      }
       isConnected = false;
     });
 

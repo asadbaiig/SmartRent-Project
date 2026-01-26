@@ -14,7 +14,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (userData: {
     email: string;
     password: string;
@@ -22,7 +22,7 @@ interface AuthContextType {
     phone?: string;
     role: string;
   }) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: () => Promise<User>;
   registerWithGoogle: (role: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     const { user: authUser } = await auth.login(email, password);
     setUser(authUser);
+    return authUser;
   };
 
   const register = async (userData: {
@@ -68,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithGoogle = async () => {
     const { user: authUser } = await auth.loginWithGoogle();
     setUser(authUser);
+    return authUser;
   };
 
   const registerWithGoogle = async (role: string) => {

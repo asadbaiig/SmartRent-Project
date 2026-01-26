@@ -19,6 +19,7 @@ import Contracts from "@/pages/contracts";
 import Payments from "@/pages/payments";
 import Verification from "@/pages/verification";
 import Disputes from "@/pages/disputes";
+import AdminPortal from "@/pages/admin-portal";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -42,9 +43,11 @@ function Router() {
           <Route path="/properties" component={Properties} />
           <Route path="/properties/:id" component={PropertyDetails} />
           <Route path="/contracts" component={Contracts} />
+          <Route path="/contracts/new" component={Contracts} />
           <Route path="/payments" component={Payments} />
           <Route path="/verification" component={Verification} />
           <Route path="/disputes" component={Disputes} />
+          <Route path="/admin/portal" component={AdminPortal} />
           <Route component={NotFound} />
         </Switch>
       </main>

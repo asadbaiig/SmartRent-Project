@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { 
   Upload, 
   Shield, 
@@ -18,18 +18,30 @@ import {
   FileText,
   AlertCircle,
   IdCard,
-  User
+  User,
+  Mail
 } from "lucide-react";
 
 export default function Verification() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [step, setStep] = useState(1);
   const [uploadedFiles, setUploadedFiles] = useState<{
     cnicFront?: File;
     cnicBack?: File;
-    additional?: File[];
+    additional?: File;
   }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [contactEmail, setContactEmail] = useState('');
+
+  // Initialize email from user
+  useEffect(() => {
+    if (user?.email) {
+      setContactEmail(user.email);
+    }
+  }, [user]);
 
   // Fetch user's documents
   const { data: documents = [], isLoading } = useQuery({
@@ -45,66 +57,204 @@ export default function Verification() {
       return response.json();
     },
     enabled: !!user,
+    refetchInterval: 5000, // Poll every 5 seconds to check verification status
   });
 
-  const handleFileUpload = async (type: string, file: File) => {
-    if (!user) {
+  // Refetch user data to get updated verification status
+  const { data: currentUser } = useQuery({
+    queryKey: ['/api/auth/me'],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch user');
+      return response.json();
+    },
+    enabled: !!user,
+    refetchInterval: 5000, // Poll every 5 seconds
+  });
+
+  // Check if user has uploaded all required documents
+  const hasAllDocuments = () => {
+    const docTypes = documents.map((d: any) => d.type);
+    const hasCnicFront = docTypes.includes('cnicFront');
+    const hasCnicBack = docTypes.includes('cnicBack');
+    const hasAdditional = docTypes.includes('additional');
+    return hasCnicFront && hasCnicBack && hasAdditional;
+  };
+
+  // Update uploadedFiles state from documents
+  useEffect(() => {
+    if (documents && documents.length > 0) {
+      const cnicFrontDoc = documents.find((d: any) => d.type === 'cnicFront');
+      const cnicBackDoc = documents.find((d: any) => d.type === 'cnicBack');
+      const additionalDoc = documents.find((d: any) => d.type === 'additional');
+      
+      // Update state if documents exist (we'll use a placeholder File object)
+      if (cnicFrontDoc && !uploadedFiles.cnicFront) {
+        setUploadedFiles(prev => ({ ...prev, cnicFront: new File([], cnicFrontDoc.fileName) }));
+      }
+      if (cnicBackDoc && !uploadedFiles.cnicBack) {
+        setUploadedFiles(prev => ({ ...prev, cnicBack: new File([], cnicBackDoc.fileName) }));
+      }
+      if (additionalDoc && !uploadedFiles.additional) {
+        setUploadedFiles(prev => ({ ...prev, additional: new File([], additionalDoc.fileName) }));
+      }
+    }
+  }, [documents]);
+
+  // Update step based on verification status
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.verificationStatus === 'verified') {
+        setStep(3);
+      } else if (currentUser.verificationStatus === 'pending' && hasAllDocuments()) {
+        setStep(2);
+      } else if (hasAllDocuments()) {
+        setStep(2);
+      } else {
+        setStep(1);
+      }
+    }
+  }, [currentUser, documents, uploadedFiles]);
+
+  const handleFileSelect = (type: string, file: File) => {
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
       toast({
-        title: "Login Required",
-        description: "Please login to upload documents",
+        title: "File Too Large",
+        description: `${file.name} is larger than 5MB. Please choose a smaller file.`,
         variant: "destructive",
       });
       return;
     }
 
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid File Type",
+        description: `${file.name} is not a valid file type. Please use JPG, PNG, or PDF.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Store the file locally, don't upload yet
+    setUploadedFiles(prev => ({ ...prev, [type]: file }));
+    
+    toast({
+      title: "File Selected",
+      description: `${file.name} has been selected. Upload all documents and click Submit.`,
+    });
+  };
+
+  const handleSubmitAllDocuments = async () => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to submit documents",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if all files are selected
+    if (!uploadedFiles.cnicFront || !uploadedFiles.cnicBack || !uploadedFiles.additional) {
+      toast({
+        title: "Missing Documents",
+        description: "Please select all three required documents before submitting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate email if provided
+    if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Upload all three documents
+      const uploadPromises = [
+        uploadDocument('cnicFront', uploadedFiles.cnicFront!),
+        uploadDocument('cnicBack', uploadedFiles.cnicBack!),
+        uploadDocument('additional', uploadedFiles.additional!)
+      ];
+
+      await Promise.all(uploadPromises);
+
+      // Note: Email is already stored in user profile and visible to admins
+      // The email input is for user confirmation/display purposes
+
+      toast({
+        title: "Documents Submitted",
+        description: "All documents have been submitted for verification. An admin will review them shortly.",
+      });
+      
+      // Update step to show waiting status
+      setStep(2);
+      
+      // Refresh user data to get updated verification status
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+    } catch (error: any) {
+      toast({
+        title: "Submission Failed",
+        description: error.message || "Failed to submit documents",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const uploadDocument = async (type: string, file: File): Promise<void> => {
+    const token = localStorage.getItem('token');
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/documents', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+    const response = await fetch('/api/documents', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
 
-      if (!response.ok) throw new Error('Failed to upload document');
-
-      const document = await response.json();
-      
-      toast({
-        title: "Upload Successful",
-        description: "Document uploaded successfully for verification",
-      });
-
-      setUploadedFiles(prev => ({ ...prev, [type]: file }));
-      
-      // Move to next step
-      if (type === 'cnicFront') setStep(2);
-      if (type === 'cnicBack') setStep(3);
-      
-    } catch (error: any) {
-      toast({
-        title: "Upload Failed",
-        description: error.message || "Failed to upload document",
-        variant: "destructive",
-      });
+    if (!response.ok) {
+      throw new Error(`Failed to upload ${type}`);
     }
+
+    return response.json();
   };
+
 
   const FileUploadArea = ({ 
     type, 
     title, 
     description, 
-    file 
+    file,
+    onFileSelect
   }: { 
     type: string; 
     title: string; 
     description: string; 
     file?: File;
+    onFileSelect?: (type: string, file: File) => void;
   }) => (
     <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-primary-500 transition-colors">
       <div className="mb-4">
@@ -129,7 +279,9 @@ export default function Verification() {
               input.accept = '.png,.jpg,.jpeg,.pdf';
               input.onchange = (e) => {
                 const newFile = (e.target as HTMLInputElement).files?.[0];
-                if (newFile) handleFileUpload(type, newFile);
+                if (newFile && onFileSelect) {
+                  onFileSelect(type, newFile);
+                }
               };
               input.click();
             }}
@@ -146,7 +298,9 @@ export default function Verification() {
             accept=".png,.jpg,.jpeg,.pdf"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleFileUpload(type, file);
+              if (file && onFileSelect) {
+                onFileSelect(type, file);
+              }
             }}
             className="hidden"
             id={`upload-${type}`}
@@ -163,19 +317,25 @@ export default function Verification() {
   );
 
   const getVerificationStatus = () => {
+    const userStatus = currentUser?.verificationStatus || user?.verificationStatus;
     if (!user) return { status: 'pending', message: 'Please login' };
     
-    switch (user.verificationStatus) {
+    switch (userStatus) {
       case 'verified':
         return { status: 'verified', message: 'Your identity has been verified' };
       case 'rejected':
         return { status: 'rejected', message: 'Verification was rejected' };
       default:
-        return { status: 'pending', message: 'Verification is pending review' };
+        // Check if all documents are uploaded
+        if (hasAllDocuments()) {
+          return { status: 'pending', message: 'Waiting for admin verification' };
+        }
+        return { status: 'pending', message: 'Please upload all required documents' };
     }
   };
 
   const verificationStatus = getVerificationStatus();
+  const displayUser = currentUser || user;
 
   if (!user) {
     return (
@@ -242,13 +402,13 @@ export default function Verification() {
                     : 'bg-warning-100 text-warning-700'
                 }
               >
-                {user.verificationStatus || 'Pending'}
+                {displayUser?.verificationStatus || 'Pending'}
               </Badge>
             </div>
           </CardContent>
         </Card>
 
-        {user.verificationStatus === 'verified' ? (
+        {(currentUser?.verificationStatus === 'verified' || user.verificationStatus === 'verified') ? (
           // Already verified view
           <Card>
             <CardContent className="p-8 text-center">
@@ -259,9 +419,32 @@ export default function Verification() {
               <p className="text-gray-600 dark:text-gray-400 mb-6">
                 Your identity has been verified successfully. You can now use all platform features.
               </p>
-              <Button asChild data-testid="button-go-to-dashboard">
-                <Link href="/dashboard">Go to Dashboard</Link>
+              <Button 
+                onClick={() => setLocation("/")} 
+                data-testid="button-continue-to-website"
+                className="w-full sm:w-auto"
+              >
+                Continue to Website
               </Button>
+            </CardContent>
+          </Card>
+        ) : (currentUser?.verificationStatus === 'pending' && hasAllDocuments()) ? (
+          // Waiting for verification view - only show if documents are uploaded
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Clock className="mx-auto h-16 w-16 text-warning-500 mb-4 animate-pulse" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Waiting for Verification
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Your documents have been submitted and are currently under review by our admin team. 
+                You will be notified once the verification is complete.
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Processing time: 24-48 hours
+                </p>
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -308,22 +491,26 @@ export default function Verification() {
               <div className="space-y-6">
                 <FileUploadArea
                   type="cnicFront"
-                  title="CNIC Front Side"
+                  title="CNIC Front Side *"
                   description="Clear photo of the front of your CNIC"
-                  file={uploadedFiles.cnicFront}
+                  file={documents.find((d: any) => d.type === 'cnicFront') ? new File([], documents.find((d: any) => d.type === 'cnicFront').fileName) : uploadedFiles.cnicFront}
+                  onFileSelect={handleFileSelect}
                 />
 
                 <FileUploadArea
                   type="cnicBack"
-                  title="CNIC Back Side"
+                  title="CNIC Back Side *"
                   description="Clear photo of the back of your CNIC"
-                  file={uploadedFiles.cnicBack}
+                  file={documents.find((d: any) => d.type === 'cnicBack') ? new File([], documents.find((d: any) => d.type === 'cnicBack').fileName) : uploadedFiles.cnicBack}
+                  onFileSelect={handleFileSelect}
                 />
 
                 <FileUploadArea
                   type="additional"
-                  title={user.role === 'landlord' ? "Real Estate License" : "Additional Documents (Optional)"}
+                  title={user.role === 'landlord' ? "Real Estate License *" : "Additional Documents *"}
                   description={user.role === 'landlord' ? "Upload your valid Real Estate License" : "Bank statement, employment letter, etc."}
+                  file={documents.find((d: any) => d.type === 'additional') ? new File([], documents.find((d: any) => d.type === 'additional').fileName) : uploadedFiles.additional}
+                  onFileSelect={handleFileSelect}
                 />
               </div>
 
@@ -390,13 +577,62 @@ export default function Verification() {
                   </CardContent>
                 </Card>
 
+                {/* Email Input */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Mail className="h-5 w-5" />
+                      Contact Email
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <Label htmlFor="contact-email">Email Address *</Label>
+                      <Input
+                        id="contact-email"
+                        type="email"
+                        placeholder="your.email@example.com"
+                        value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
+                        required
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        This email will be visible to admins during verification. We'll use it to notify you about your verification status.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Submit Button */}
-                {uploadedFiles.cnicFront && uploadedFiles.cnicBack && (
-                  <Button className="w-full" data-testid="button-submit-verification">
+                <div className="space-y-2">
+                  <Button 
+                    className="w-full" 
+                    data-testid="button-submit-verification"
+                    onClick={handleSubmitAllDocuments}
+                    disabled={
+                      isSubmitting || 
+                      !uploadedFiles.cnicFront || 
+                      !uploadedFiles.cnicBack || 
+                      !uploadedFiles.additional || 
+                      !contactEmail ||
+                      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)
+                    }
+                  >
                     <IdCard className="mr-2 h-4 w-4" />
-                    Submit for Verification
+                    {isSubmitting ? 'Submitting All Documents...' : 'Submit All Documents for Verification'}
                   </Button>
-                )}
+                  
+                  {(!uploadedFiles.cnicFront || !uploadedFiles.cnicBack || !uploadedFiles.additional || !contactEmail) && (
+                    <div className="text-center p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {!contactEmail && "⚠️ Email required. "}
+                        {!uploadedFiles.cnicFront && "⚠️ CNIC Front required. "}
+                        {!uploadedFiles.cnicBack && "⚠️ CNIC Back required. "}
+                        {!uploadedFiles.additional && `⚠️ ${user.role === 'landlord' ? 'Real Estate License' : 'Additional Documents'} required.`}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

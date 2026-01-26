@@ -16,10 +16,14 @@
     "hardhat:test": "cd blockchain && hardhat test",
     "hardhat:node": "cd blockchain && hardhat node",
     "hardhat:clean": "cd blockchain && hardhat clean",
+    "blockchain:deploy": "cd blockchain && npx hardhat run scripts/deploy.cjs --network localhost",
+    "blockchain:check-deploy": "cd blockchain && npx hardhat run scripts/check-and-deploy.cjs --network localhost",
     "blockchain:list": "cd blockchain && npx hardhat run scripts/list-contracts.cjs --network localhost",
     "blockchain:get": "cd blockchain && npx hardhat run scripts/get-contract.cjs --network localhost",
     "blockchain:check": "cd blockchain && npx hardhat run scripts/quick-test.cjs --network localhost",
-    "blockchain:backfill": "npx tsx server/scripts/backfill-contracts-to-blockchain.ts"
+    "blockchain:backfill": "npx tsx server/scripts/backfill-contracts-to-blockchain.ts",
+    "blockchain:check-sync": "npx tsx server/scripts/check-mongodb-blockchain-sync.ts",
+    "create-admin": "npx tsx server/scripts/create-admin-user.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

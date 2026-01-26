@@ -482,9 +482,9 @@ export default function Dashboard() {
                 {stats?.pendingVerifications || 0} users waiting for verification
               </p>
               <Button className="w-full" asChild data-testid="button-review-verifications">
-                <Link href="/admin/verifications">
+                <Link href="/admin/portal">
                   <IdCard className="mr-2 h-4 w-4" />
-                  Review Verifications
+                  Admin Portal
                 </Link>
               </Button>
             </div>

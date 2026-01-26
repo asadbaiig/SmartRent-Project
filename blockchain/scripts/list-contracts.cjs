@@ -30,6 +30,16 @@ async function main() {
   console.log("=".repeat(60) + "\n");
 
   try {
+    // Check if contract code exists at this address
+    const code = await ethers.provider.getCode(contractAddress);
+    if (code === "0x") {
+      console.log("❌ No contract code found at this address!");
+      console.log("   The Hardhat node was likely reset.");
+      console.log("   Please redeploy the contract:");
+      console.log("   npm run blockchain:deploy\n");
+      return;
+    }
+    
     // Connect to the contract
     const contract = await ethers.getContractAt("RentalContract", contractAddress);
     
@@ -63,23 +73,32 @@ async function main() {
       const event = events[i];
       const args = event.args;
       
-      // Decode contractId from indexed string in event
-      // Indexed strings are hashed, so we need to get it from the transaction receipt
+      // Decode contractId from transaction input data
+      // Indexed strings are hashed in events, so we need to decode from the transaction
       let contractId;
       try {
-        const receipt = await ethers.provider.getTransactionReceipt(event.transactionHash);
-        const iface = contract.interface;
-        const parsedLog = iface.parseLog({
-          topics: event.topics,
-          data: event.data
-        });
-        contractId = parsedLog.args.contractId;
-      } catch (e) {
-        // Fallback: try to use args directly
-        contractId = args.contractId;
-        if (typeof contractId !== 'string') {
-          contractId = `Contract-${i + 1}`;
+        const tx = await ethers.provider.getTransaction(event.transactionHash);
+        if (!tx || !tx.data) {
+          throw new Error("Transaction data not available");
         }
+        const iface = contract.interface;
+        const decoded = iface.decodeFunctionData("createContract", tx.data);
+        contractId = decoded[0]; // First parameter is contractId (string)
+        
+        // Validate it's a string
+        if (typeof contractId !== 'string') {
+          throw new Error("ContractId is not a string");
+        }
+      } catch (e) {
+        // If decoding fails, we can't recover the contractId from the event
+        // because indexed strings are hashed. We'll show what we can from the event.
+        console.log(`\n⚠️  Contract #${i + 1} - Could not decode contractId from transaction`);
+        console.log(`   Transaction: ${event.transactionHash}`);
+        console.log(`   Landlord: ${args.landlord}`);
+        console.log(`   Tenant: ${args.tenant}`);
+        console.log(`   Monthly Rent: ${ethers.formatEther(args.monthlyRent)} ETH`);
+        console.log(`   Start Date: ${new Date(Number(args.startDate) * 1000).toLocaleDateString()}`);
+        continue; // Skip to next contract
       }
       
       try {
@@ -130,11 +149,39 @@ async function main() {
   }
 }
 
+async function cleanup() {
+  try {
+    const { ethers } = hre;
+    if (ethers && ethers.provider) {
+      // Remove all listeners to prevent hanging connections
+      if (ethers.provider.removeAllListeners) {
+        ethers.provider.removeAllListeners();
+      }
+      // Destroy provider if method exists
+      if (ethers.provider.destroy && typeof ethers.provider.destroy === 'function') {
+        await ethers.provider.destroy();
+      }
+    }
+  } catch (cleanupError) {
+    // Ignore cleanup errors
+  }
+}
+
 main()
-  .then(() => process.exit(0))
-  .catch((error) => {
+  .then(async () => {
+    await cleanup();
+    // Small delay to ensure cleanup completes, then exit
+    setTimeout(() => {
+      process.exit(0);
+    }, 200);
+  })
+  .catch(async (error) => {
     console.error(error);
-    process.exitCode = 1;
+    await cleanup();
+    // Small delay to ensure cleanup completes, then exit
+    setTimeout(() => {
+      process.exit(1);
+    }, 200);
   });
 
 

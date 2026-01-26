@@ -24,6 +24,7 @@ vi.mock('../../server/firebase-auth', () => ({
 
 vi.mock('../../server/firebase-storage', () => ({
   firebaseStorage: {
+    getAllUsers: vi.fn(),
     getUserById: vi.fn(),
     getUserByEmail: vi.fn(),
     updateUserVerificationStatus: vi.fn(),
@@ -47,12 +48,20 @@ describe('Admin API', () => {
 
   describe('GET /api/admin/users', () => {
     it('should return list of users (admin only)', async () => {
+      const mockUsers = [
+        { id: 'user-1', email: 'user1@example.com', role: 'tenant' },
+        { id: 'user-2', email: 'user2@example.com', role: 'landlord' },
+      ];
+
+      (firebaseStorage.getAllUsers as any).mockResolvedValueOnce(mockUsers);
+
       const response = await request(app)
         .get('/api/admin/users')
         .set('Authorization', 'Bearer admin-1')
         .expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBe(2);
     });
 
     it('should return 403 if user is not admin', async () => {
@@ -98,7 +107,11 @@ describe('Admin API', () => {
         .expect(200);
 
       expect(response.body.verificationStatus).toBe('verified');
-      expect(firebaseStorage.updateUserVerificationStatus).toHaveBeenCalledWith('user-1', 'verified');
+      // Route may call with status and optional notes
+      expect(firebaseStorage.updateUserVerificationStatus).toHaveBeenCalled();
+      const callArgs = (firebaseStorage.updateUserVerificationStatus as any).mock.calls[0];
+      expect(callArgs[0]).toBe('user-1');
+      expect(callArgs[1]).toBe('verified');
     });
 
     it('should return 400 for invalid status', async () => {

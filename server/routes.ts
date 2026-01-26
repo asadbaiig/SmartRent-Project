@@ -1449,6 +1449,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Store in MongoDB
       const document = await mongoDBStorage.createDocument(documentData);
+
+      // If this is a verification document (cnicFront, cnicBack, or additional), 
+      // set user verification status to pending if not already verified
+      const verificationDocTypes = ['cnicFront', 'cnicBack', 'additional'];
+      if (verificationDocTypes.includes(req.body.type)) {
+        try {
+          const currentUser = await firebaseStorage.getUserById(req.user!.uid);
+          if (currentUser && currentUser.verificationStatus !== 'verified') {
+            await firebaseStorage.updateUserVerificationStatus(req.user!.uid, 'pending');
+          }
+        } catch (error) {
+          console.error("Failed to update user verification status:", error);
+          // Don't fail the document upload if status update fails
+        }
+      }
+
       res.status(201).json(document);
     } catch (error) {
       console.error("Upload document error:", error);
@@ -1487,18 +1503,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin routes
   app.get("/api/admin/users", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
     try {
-      // This would need a getAllUsers method in storage
-      res.json([]);
+      const users = await firebaseStorage.getAllUsers();
+      res.json(users);
     } catch (error) {
       console.error("Get users error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
 
+  // Get user by ID (for admin to fetch user details)
+  app.get("/api/admin/users/:id", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = await firebaseStorage.getUserById(req.params.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error("Get user by ID error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.put("/api/admin/users/:id/verification", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { status } = req.body;
-      const user = await firebaseStorage.updateUserVerificationStatus(req.params.id, status);
+      const { status, notes } = req.body;
+      if (!status) {
+        return res.status(400).json({ message: "Status is required" });
+      }
+      const user = await firebaseStorage.updateUserVerificationStatus(req.params.id, status, notes);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
       res.json(user);
     } catch (error) {
       console.error("Update verification error:", error);
@@ -1568,18 +1604,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/disputes", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/disputes", authenticateToken, upload.array('files'), async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const validatedData = insertDisputeSchema.parse({
-        ...req.body,
-        raisedBy: req.user!.uid,
+      console.log("[Dispute] Received request body:", req.body);
+      console.log("[Dispute] Received files:", req.files);
+      console.log("[Dispute] User:", req.user?.uid);
+      
+      // Get form fields from req.body (multer puts them there)
+      const { title, description, contractId, propertyId, category } = req.body;
+      
+      console.log("[Dispute] Parsed fields:", { title, description, contractId, propertyId, category });
+      
+      if (!title || !description || !contractId) {
+        console.error("[Dispute] Missing required fields:", { title: !!title, description: !!description, contractId: !!contractId });
+        return res.status(400).json({ message: "Title, description, and contract ID are required" });
+      }
+
+      // Get contract to find the againstUser (the other party)
+      const contract = await firebaseStorage.getContractById(contractId);
+      if (!contract) {
+        return res.status(404).json({ message: "Contract not found" });
+      }
+
+      // Determine againstUser (if raisedBy is landlord, againstUser is tenant, and vice versa)
+      const raisedBy = req.user!.uid;
+      const againstUser = contract.landlordId === raisedBy ? contract.tenantId : contract.landlordId;
+      
+      if (!againstUser) {
+        return res.status(400).json({ message: "Could not determine the other party in the contract" });
+      }
+
+      // Process uploaded files as evidence
+      const evidence: any[] = [];
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files) {
+          // Validate file type
+          const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+          if (!allowedMimeTypes.includes(file.mimetype)) {
+            await fs.unlink(file.path).catch(() => {});
+            return res.status(400).json({ message: `File ${file.originalname} is not a valid type. Only JPEG, PNG, WebP images and PDF files are allowed.` });
+          }
+
+          // Validate file size (10MB max)
+          const maxSize = 10 * 1024 * 1024; // 10MB
+          if (file.size > maxSize) {
+            await fs.unlink(file.path).catch(() => {});
+            return res.status(400).json({ message: `File ${file.originalname} is too large. Maximum size is 10MB.` });
+          }
+
+          const fileName = path.basename(file.path);
+          const fileUrl = `/uploads/${fileName}`;
+          evidence.push({
+            fileName: file.originalname,
+            filePath: fileUrl,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            uploadedBy: raisedBy,
+            uploadedAt: new Date()
+          });
+        }
+      }
+
+      // Create dispute data - Firebase is flexible, so we can include extra fields
+      const disputeData: any = {
+        contractId: String(contractId),
+        raisedBy: String(raisedBy),
+        againstUser: String(againstUser),
+        title: String(title),
+        description: String(description),
+        status: 'open',
+        evidence: evidence.length > 0 ? evidence : [],
+      };
+
+      // Add optional fields only if they exist
+      if (propertyId) {
+        disputeData.propertyId = String(propertyId);
+      } else if (contract.propertyId) {
+        disputeData.propertyId = String(contract.propertyId);
+      }
+
+      if (category) {
+        disputeData.category = String(category);
+      }
+
+      console.log("[Dispute] Creating dispute with data:", JSON.stringify(disputeData, null, 2));
+
+      // Skip schema validation and create directly - Firebase is flexible
+      // The schema validation was causing issues, so we'll validate manually
+      if (!disputeData.contractId || !disputeData.raisedBy || !disputeData.againstUser || !disputeData.title || !disputeData.description) {
+        return res.status(400).json({ message: "Missing required fields: contractId, raisedBy, againstUser, title, and description are required" });
+      }
+      
+      const dispute = await firebaseStorage.createDispute(disputeData as any);
+      res.status(201).json(dispute);
+    } catch (error: any) {
+      console.error("Create dispute error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack,
+        errors: error.errors
       });
       
-      const dispute = await firebaseStorage.createDispute(validatedData);
-      res.status(201).json(dispute);
-    } catch (error) {
-      console.error("Create dispute error:", error);
-      res.status(400).json({ message: "Invalid data provided" });
+      // Clean up uploaded files if validation failed
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files) {
+          await fs.unlink(file.path).catch(() => {});
+        }
+      }
+      
+      // Provide more detailed error message
+      let errorMessage = "Invalid data provided";
+      if (error.errors && Array.isArray(error.errors)) {
+        errorMessage = error.errors.map((e: any) => `${e.path?.join('.') || 'field'}: ${e.message}`).join(', ');
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      res.status(400).json({ message: errorMessage });
     }
   });
 

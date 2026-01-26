@@ -77,15 +77,34 @@ async function main() {
       console.log("2. Check that RENTAL_CONTRACT_ADDRESS in .env is correct");
       console.log("3. Ensure Hardhat node is running\n");
     }
+  } finally {
+    // Close the provider connection to prevent assertion errors
+    try {
+      if (hre.ethers && hre.ethers.provider) {
+        await hre.ethers.provider.destroy();
+      }
+    } catch (err) {
+      // Ignore errors during cleanup
+    }
   }
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(() => {
+    // Give a small delay to ensure cleanup completes
+    setTimeout(() => process.exit(0), 100);
+  })
   .catch((error) => {
     console.error(error);
-    process.exitCode = 1;
+    setTimeout(() => {
+      process.exitCode = 1;
+      process.exit(1);
+    }, 100);
   });
+
+
+
+
 
 
 

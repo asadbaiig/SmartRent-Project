@@ -25,12 +25,23 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(formData.email, formData.password);
+      // Convert "admin" username to "admin@smartrent.com" for Firebase
+      let email = formData.email;
+      if (email === 'admin' || email === 'admin@smartrent.com') {
+        email = 'admin@smartrent.com';
+      }
+      
+      const authUser = await login(email, formData.password);
       toast({
         title: "Success",
         description: "Logged in successfully!",
       });
-      setLocation("/dashboard");
+      // Redirect admin users to admin portal, others to dashboard
+      if (authUser?.role === 'admin') {
+        setLocation("/admin/portal");
+      } else {
+        setLocation("/dashboard");
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -49,12 +60,17 @@ export default function Login() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      await loginWithGoogle();
+      const authUser = await loginWithGoogle();
       toast({
         title: "Success",
         description: "Logged in with Google successfully!",
       });
-      setLocation("/dashboard");
+      // Redirect admin users to admin portal, others to dashboard
+      if (authUser?.role === 'admin') {
+        setLocation("/admin/portal");
+      } else {
+        setLocation("/dashboard");
+      }
     } catch (error: any) {
       toast({
         title: "Error",

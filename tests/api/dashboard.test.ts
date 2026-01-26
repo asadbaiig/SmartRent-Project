@@ -145,6 +145,10 @@ describe('Dashboard API', () => {
       (mongoDBStorage.getLandlordStats as any).mockRejectedValueOnce(
         new Error('Database error')
       );
+      // Route also calls firebaseStorage.getContracts, so mock it
+      (firebaseStorage.getContracts as any).mockRejectedValueOnce(
+        new Error('Database error')
+      );
 
       const response = await request(app)
         .get('/api/dashboard/stats')

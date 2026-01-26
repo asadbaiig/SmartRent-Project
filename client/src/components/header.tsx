@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Moon, Sun, User, LogOut } from "lucide-react";
+import { Bell, Moon, Sun, User, LogOut, Shield } from "lucide-react";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -190,22 +190,39 @@ export function Header() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center" data-testid="link-dashboard">
-                        <User className="mr-2 h-4 w-4" />
-                        Dashboard
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/verification" className="flex items-center" data-testid="link-verification">
-                        <User className="mr-2 h-4 w-4" />
-                        Verification
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout} data-testid="button-logout">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Logout
-                    </DropdownMenuItem>
+                    {user.role === 'admin' ? (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/portal" className="flex items-center" data-testid="link-admin-portal">
+                            <Shield className="mr-2 h-4 w-4" />
+                            Admin Portal
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleLogout} data-testid="button-logout">
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Logout
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link href="/dashboard" className="flex items-center" data-testid="link-dashboard">
+                            <User className="mr-2 h-4 w-4" />
+                            Dashboard
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/verification" className="flex items-center" data-testid="link-verification">
+                            <User className="mr-2 h-4 w-4" />
+                            Verification
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleLogout} data-testid="button-logout">
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Logout
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>

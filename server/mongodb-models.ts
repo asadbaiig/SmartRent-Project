@@ -87,8 +87,8 @@ async function initializeModels() {
     // Document Schema
     const DocumentSchema = new Schema({
       userId: { type: String, required: true, index: true },
-      propertyId: { type: String, index: true },
-      contractId: { type: String, index: true },
+      propertyId: { type: String },
+      contractId: { type: String },
       type: { type: String, required: true },
       fileName: { type: String, required: true },
       filePath: { type: String, required: true },
@@ -165,7 +165,7 @@ async function initializeModels() {
 
     // Contract Schema
     const ContractSchema = new Schema({
-      propertyId: { type: String, required: true, index: true },
+      propertyId: { type: String, required: true },
       landlordId: { type: String, required: true, index: true },
       tenantId: { type: String, required: true, index: true },
       monthlyRent: { type: String, required: true },
@@ -177,8 +177,7 @@ async function initializeModels() {
         type: String, 
         required: true, 
         default: 'draft',
-        enum: ['draft', 'active', 'expired', 'terminated'],
-        index: true 
+        enum: ['draft', 'active', 'expired', 'terminated']
       },
       blockchainHash: { type: String },
       digitalSignature: { type: Schema.Types.Mixed }, // JSON object

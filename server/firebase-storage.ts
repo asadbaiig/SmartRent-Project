@@ -618,8 +618,27 @@ export class FirebaseStorage {
   }
 
   // Utility methods for stats and other operations
-  async updateUserVerificationStatus(userId: string, status: string): Promise<User | null> {
-    return this.updateUser(userId, { verificationStatus: status as any });
+  async getAllUsers(): Promise<User[]> {
+    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt)
+      } as User;
+    });
+  }
+
+  async updateUserVerificationStatus(userId: string, status: string, notes?: string): Promise<User | null> {
+    const updates: any = { verificationStatus: status as any };
+    if (notes) {
+      updates.verificationNotes = notes;
+    }
+    return this.updateUser(userId, updates);
   }
 
   async getLandlordStats(landlordId: string): Promise<any> {

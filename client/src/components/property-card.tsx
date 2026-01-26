@@ -6,6 +6,11 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { ShareDialog } from "@/components/share-dialog";
+import { useAuth } from "@/hooks/use-auth";
+import { Trash2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface PropertyCardProps {
   property: {
@@ -59,6 +64,38 @@ export function PropertyCard({ property }: PropertyCardProps) {
       setImageError(true);
     }
   };
+
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/properties/${property.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to delete property");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      toast({ title: "Property deleted successfully" });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: "Failed to delete property",
+        description: e.message,
+        variant: "destructive"
+      });
+    }
+  });
 
   return (
     <>
@@ -118,7 +155,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
               )}
 
               {/* Share Button */}
-              <div className={`absolute ${property.aiSuggestedPrice ? 'top-12' : 'top-3'} right-3`}>
+              <div className={`absolute ${property.aiSuggestedPrice ? 'top-12' : 'top-3'} right-3 flex flex-col gap-2`}>
                 <Button
                   size="icon"
                   variant="secondary"
@@ -132,6 +169,25 @@ export function PropertyCard({ property }: PropertyCardProps) {
                 >
                   <Share2 className="h-4 w-4 text-gray-700" />
                 </Button>
+
+                {user?.role === 'admin' && !property.id.startsWith('ds-') && (
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    className="h-8 w-8 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (confirm("Are you sure you want to delete this property?")) {
+                        deleteMutation.mutate();
+                      }
+                    }}
+                    title="Delete property"
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
 
             </div>

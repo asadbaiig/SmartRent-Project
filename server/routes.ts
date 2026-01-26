@@ -13,7 +13,7 @@ import { insertUserSchema, insertPropertySchema, insertContractSchema, insertPay
 const upload = multer({ dest: 'uploads/' });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+
   // Helper: load properties from dataset folder (JSON or CSV)
   async function loadDatasetProperties(): Promise<any[]> {
     try {
@@ -44,7 +44,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let inQuotes = false;
           for (let i = 0; i < line.length; i++) {
             const ch = line[i];
-            if (ch === '"' ) {
+            if (ch === '"') {
               if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
                 current += '"';
                 i++;
@@ -58,7 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               current += ch;
             }
           }
-        result.push(current.trim());
+          result.push(current.trim());
           return result;
         };
         const headers = splitCsv(lines[0]).map((h) => h.trim());
@@ -150,7 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "11.jpeg",
           "12.jpeg"
         ];
-        
+
         // For first 12 properties: assign unique images (no repeats)
         // After that: cycle through images based on property ID
         if (index < 12) {
@@ -168,7 +168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return `/uploads/${imageName}`;
         }
       };
-      
+
       // Fallback images - use local images as fallback too
       const imageByType: Record<string, string> = {
         apartment: "/uploads/1.jpeg",
@@ -176,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         commercial: "/uploads/3.jpeg",
         office: "/uploads/4.jpeg",
       };
-      
+
       const mapped = items.slice(0, 50).map((p, idx) => {
         const propertyType = (p.propertyType || p.type || "apartment").toString().toLowerCase();
         const images = Array.isArray(p.images)
@@ -195,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const latitude = extractCoordinate(latitudeSource);
         const longitude = extractCoordinate(longitudeSource);
         const coordinates = latitude !== undefined && longitude !== undefined ? { lat: latitude, lng: longitude } : undefined;
-        
+
         // Generate property-specific image
         const propertyImage = getPropertyImage(p, idx);
         const fallbackImage = imageByType[propertyType] || imageByType["apartment"];
@@ -235,7 +235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const validatedData = insertUserSchema.parse(req.body) as any;
-      
+
       // Check if user exists
       try {
         const existingUser = await firebaseStorage.getUserByEmail(validatedData.email);
@@ -248,8 +248,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create user with Firebase Auth
       const { user, firebaseUser } = await firebaseAuth.signUp(
-        validatedData.email, 
-        validatedData.password, 
+        validatedData.email,
+        validatedData.password,
         {
           email: validatedData.email,
           fullName: validatedData.fullName,
@@ -296,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body;
-      
+
       // Sign in with Firebase Auth
       const { user, firebaseUser } = await firebaseAuth.signIn(email, password);
 
@@ -349,7 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/google", async (req: Request, res: Response) => {
     try {
       const { user: firebaseUser, idToken } = req.body;
-      
+
       if (!firebaseUser || !idToken) {
         return res.status(400).json({ message: "Firebase user data and ID token are required" });
       }
@@ -372,8 +372,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Google login error:", error);
       // Demo-friendly fallback when Firestore permissions block normal flow
-      if ((error.message || '').toLowerCase().includes('insufficient permissions') || 
-          (error.message || '').includes('PERMISSION_DENIED')) {
+      if ((error.message || '').toLowerCase().includes('insufficient permissions') ||
+        (error.message || '').includes('PERMISSION_DENIED')) {
         const { user: firebaseUser } = req.body;
         if (firebaseUser && firebaseUser.email) {
           const fallbackUser = {
@@ -398,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/google/register", async (req: Request, res: Response) => {
     try {
       const { user: firebaseUser, idToken, role } = req.body;
-      
+
       if (!firebaseUser || !idToken || !role) {
         return res.status(400).json({ message: "Firebase user data, ID token, and role are required" });
       }
@@ -425,8 +425,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Google registration error:", error);
       // Demo-friendly fallback when Firestore permissions block normal flow
-      if ((error.message || '').toLowerCase().includes('insufficient permissions') || 
-          (error.message || '').includes('PERMISSION_DENIED')) {
+      if ((error.message || '').toLowerCase().includes('insufficient permissions') ||
+        (error.message || '').includes('PERMISSION_DENIED')) {
         const { user: firebaseUser, role } = req.body;
         if (firebaseUser && firebaseUser.email && role) {
           const fallbackUser = {
@@ -455,10 +455,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
 
-      res.json({ 
-        id: user.id, 
-        email: user.email, 
-        fullName: user.fullName, 
+      res.json({
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
         role: user.role,
         verificationStatus: user.verificationStatus,
         phone: user.phone,
@@ -475,21 +475,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/by-email", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { email } = req.query;
-      
+
       if (!email || typeof email !== 'string') {
         return res.status(400).json({ message: "Email query parameter is required" });
       }
 
       const user = await firebaseStorage.getUserByEmail(email);
-      
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      res.json({ 
-        id: user.id, 
-        email: user.email, 
-        fullName: user.fullName, 
+      res.json({
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
         role: user.role,
         verificationStatus: user.verificationStatus
       });
@@ -503,7 +503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/properties", async (req: Request, res: Response) => {
     try {
       const { city, propertyType, minRent, maxRent, bedrooms, bedroomsMin, limit = 20, offset = 0 } = req.query;
-      
+
       const filters = {
         city: city as string,
         propertyType: propertyType as string,
@@ -519,7 +519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Load from both MongoDB AND dataset, then merge
       const isMongoConnected = await import('./mongodb').then(m => m.isMongoDBConnected());
       let mongoProperties: any[] = [];
-      
+
       if (isMongoConnected) {
         try {
           mongoProperties = await mongoDBStorage.getProperties(filters);
@@ -528,41 +528,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("[API /properties] MongoDB error:", error);
         }
       }
-      
+
       // Always load dataset properties to supplement MongoDB
       console.log("[API /properties] Loading dataset properties...");
       const datasetItems = await loadDatasetProperties();
       console.log("[API /properties] Dataset returned", datasetItems.length, "items");
-      
+
       // Apply filters to dataset properties
       let filteredDataset = datasetItems;
-      
+
       if (filters.city) {
-        filteredDataset = filteredDataset.filter(p => 
+        filteredDataset = filteredDataset.filter(p =>
           (p.city || '').toString().toLowerCase().includes(filters.city!.toLowerCase())
         );
       }
-      
+
       if (filters.propertyType) {
-        filteredDataset = filteredDataset.filter(p => 
+        filteredDataset = filteredDataset.filter(p =>
           (p.propertyType || '').toString().toLowerCase() === filters.propertyType!.toLowerCase()
         );
       }
-      
+
       if (filters.minRent !== undefined) {
         filteredDataset = filteredDataset.filter(p => {
           const rent = Number(p.monthlyRent || 0);
           return rent >= filters.minRent!;
         });
       }
-      
+
       if (filters.maxRent !== undefined) {
         filteredDataset = filteredDataset.filter(p => {
           const rent = Number(p.monthlyRent || 0);
           return rent <= filters.maxRent!;
         });
       }
-      
+
       if (filters.bedroomsMin !== undefined) {
         // For "3+" case - filter bedrooms >= 3
         filteredDataset = filteredDataset.filter(p => {
@@ -576,22 +576,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return beds === filters.bedrooms!;
         });
       }
-      
+
       // Only show available properties
       filteredDataset = filteredDataset.filter(p => p.isAvailable !== false);
-      
+
       // Merge: MongoDB properties first, then filtered dataset properties
       const allProperties = [...mongoProperties, ...filteredDataset];
       console.log("[API /properties] Total combined:", allProperties.length, "properties");
-      
+
       res.setHeader("Cache-Control", "no-store");
-      
+
       if (allProperties.length > 0) {
         const sliced = allProperties.slice(Number(offset) || 0, (Number(offset) || 0) + (Number(limit) || 20));
         console.log("[API /properties] Returning", sliced.length, "items");
         return res.json(sliced);
       }
-      
+
       // Only if both sources are empty, use demo data
       if (allProperties.length === 0) {
         // Fallback demo items so UI has content when DB is empty
@@ -609,7 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sqft: 950,
             monthlyRent: "65000",
             securityDeposit: "130000",
-            amenities: ["Lift","Parking","Security"],
+            amenities: ["Lift", "Parking", "Security"],
             images: ["https://images.unsplash.com/photo-1522708323590-d24dbb6b0267"],
             isAvailable: true,
           },
@@ -626,7 +626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sqft: 1800,
             monthlyRent: "120000",
             securityDeposit: "240000",
-            amenities: ["Garden","Car Porch","Security"],
+            amenities: ["Garden", "Car Porch", "Security"],
             images: ["https://images.unsplash.com/photo-1505691723518-36a5ac3b2d95"],
             isAvailable: true,
           },
@@ -641,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sqft: 1200,
             monthlyRent: "180000",
             securityDeposit: "360000",
-            amenities: ["Generator","Fiber Internet","Lift"],
+            amenities: ["Generator", "Fiber Internet", "Lift"],
             images: ["https://images.unsplash.com/photo-1524758631624-e2822e304c36"],
             isAvailable: true,
           },
@@ -655,7 +655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[API /properties] Error, loading from dataset...");
       res.setHeader("Cache-Control", "no-store");
       const { city, propertyType, minRent, maxRent, bedrooms, bedroomsMin, limit = 20, offset = 0 } = req.query;
-      
+
       const filters = {
         city: city as string,
         propertyType: propertyType as string,
@@ -664,10 +664,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bedrooms: bedrooms ? Number(bedrooms) : undefined,
         bedroomsMin: bedroomsMin ? Number(bedroomsMin) : undefined,
       };
-      
+
       let ds = await loadDatasetProperties();
       console.log("[API /properties] Dataset returned", ds.length, "items in catch block");
-      
+
       // Apply filters to dataset
       if (filters.city) {
         ds = ds.filter(p => (p.city || '').toString().toLowerCase().includes(filters.city!.toLowerCase()));
@@ -687,7 +687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ds = ds.filter(p => Number(p.bedrooms || 0) === filters.bedrooms!);
       }
       ds = ds.filter(p => p.isAvailable !== false);
-      
+
       if (ds.length > 0) {
         const sliced = ds.slice(Number(offset || 0), Number(offset || 0) + Number(limit || 20));
         console.log("[API /properties] Returning", sliced.length, "items from dataset (catch)");
@@ -714,20 +714,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete property (Admin only)
+  app.delete("/api/properties/:id", authenticateToken, requireRole(["admin"]), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      await mongoDBStorage.deleteProperty(id);
+      res.json({ message: "Property deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete property error:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  });
+
   // Map-specific endpoint: Load properties from CSV for Islamabad, Lahore, and Karachi
   app.get("/api/properties/map", async (req: Request, res: Response) => {
     try {
       const datasetDir = path.resolve(process.cwd(), "server", "dataset");
       const entries = await fs.readdir(datasetDir);
       const csvFile = entries.find((f) => f.toLowerCase().endsWith(".csv"));
-      
+
       if (!csvFile) {
         return res.json([]);
       }
 
       const fullPath = path.join(datasetDir, csvFile);
       const raw = await fs.readFile(fullPath, "utf-8");
-      
+
       // Parse CSV - read more lines to get enough properties
       const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
       if (lines.length === 0) return res.json([]);
@@ -778,12 +790,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (let i = 1; i < lines.length && (cityCounts.islamabad < 20 || cityCounts.lahore < 20 || cityCounts.karachi < 20); i++) {
         const cols = splitCsv(lines[i]);
         const city = getVal(cols, ["city"], "").toLowerCase().trim();
-        
+
         // Check if this city is one we want and we need more
         if (targetCities.includes(city) && cityCounts[city] < 20) {
           const latitudeRaw = getVal(cols, ["latitude", "lat"], "");
           const longitudeRaw = getVal(cols, ["longitude", "lng", "long", "lon"], "");
-          
+
           const parseCoordinate = (value: any) => {
             if (typeof value !== "string" && typeof value !== "number") return undefined;
             const numeric = typeof value === "number"
@@ -859,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         landlordId: req.user!.uid,
       });
-      
+
       // Store in MongoDB
       const property = await mongoDBStorage.createProperty(validatedData);
       res.status(201).json(property);
@@ -886,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sqft: 950,
           monthlyRent: "65000",
           securityDeposit: "130000",
-          amenities: ["Lift","Parking","Security"],
+          amenities: ["Lift", "Parking", "Security"],
           images: ["https://images.unsplash.com/photo-1522708323590-d24dbb6b0267"],
           isAvailable: true,
         },
@@ -902,7 +914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sqft: 1800,
           monthlyRent: "120000",
           securityDeposit: "240000",
-          amenities: ["Garden","Car Porch","Security"],
+          amenities: ["Garden", "Car Porch", "Security"],
           images: ["https://images.unsplash.com/photo-1505691723518-36a5ac3b2d95"],
           isAvailable: true,
         },
@@ -916,12 +928,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sqft: 1200,
           monthlyRent: "180000",
           securityDeposit: "360000",
-          amenities: ["Generator","Fiber Internet","Lift"],
+          amenities: ["Generator", "Fiber Internet", "Lift"],
           images: ["https://images.unsplash.com/photo-1524758631624-e2822e304c36"],
           isAvailable: true,
         },
       ];
-      
+
       const created: any[] = [];
       for (const sample of samples) {
         const validated = insertPropertySchema.parse({ ...sample, landlordId });
@@ -929,7 +941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const property = await mongoDBStorage.createProperty(validated);
         created.push(property);
       }
-      
+
       res.status(201).json({ count: created.length, properties: created });
     } catch (error: any) {
       console.error("Seed properties error:", error);
@@ -971,21 +983,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/contracts", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const filters: any = {};
-      
+
       if (req.user!.role === 'landlord') {
         filters.landlordId = req.user!.uid;
       } else if (req.user!.role === 'tenant') {
         filters.tenantId = req.user!.uid;
       }
-      
+
       // Try MongoDB first, fallback to Firebase
       let contracts = await mongoDBStorage.getContracts(filters);
-      
+
       // If MongoDB is not connected or returns empty, try Firebase
       if (contracts.length === 0 && !await isMongoDBConnected()) {
         contracts = await firebaseStorage.getContracts(filters);
       }
-      
+
       // Populate tenant and landlord emails
       const contractsWithUsers = await Promise.all(contracts.map(async (contract: any) => {
         try {
@@ -1004,7 +1016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         }
       }));
-      
+
       res.json(contractsWithUsers);
     } catch (error) {
       console.error("Get contracts error:", error);
@@ -1017,7 +1029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           filters.tenantId = req.user!.uid;
         }
         const contracts = await firebaseStorage.getContracts(filters);
-        
+
         // Populate tenant and landlord emails
         const contractsWithUsers = await Promise.all(contracts.map(async (contract: any) => {
           try {
@@ -1036,7 +1048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
           }
         }));
-        
+
         res.json(contractsWithUsers);
       } catch (fallbackError) {
         res.status(500).json({ message: "Internal server error" });
@@ -1052,23 +1064,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         landlordId: req.user!.uid,
         duration: req.body.duration ? parseInt(String(req.body.duration)) : 12,
       };
-      
+
       const validatedData = insertContractSchema.parse(contractData);
-      
+
       // Add dates if not provided (database requires them)
       if (!validatedData.startDate) {
         validatedData.startDate = new Date();
       }
       if (!validatedData.endDate) {
-        const durationMonths = (typeof validatedData.duration === 'number' ? validatedData.duration : 
-                                typeof validatedData.duration === 'string' ? parseInt(validatedData.duration) : 12);
+        const durationMonths = (typeof validatedData.duration === 'number' ? validatedData.duration :
+          typeof validatedData.duration === 'string' ? parseInt(validatedData.duration) : 12);
         const endDate = new Date(validatedData.startDate);
         endDate.setMonth(endDate.getMonth() + durationMonths);
         validatedData.endDate = endDate;
       }
       // Remove duration as it's not in the schema
       delete (validatedData as any).duration;
-      
+
       // Try MongoDB first, fallback to Firebase
       let contract;
       try {
@@ -1078,7 +1090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[Contracts] MongoDB not available, using Firebase');
         contract = await firebaseStorage.createContract(validatedData);
       }
-      
+
       res.status(201).json(contract);
     } catch (error: any) {
       console.error("Create contract error:", error);
@@ -1092,20 +1104,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let contract = await mongoDBStorage.getContract(req.params.id);
       let updatedContract;
       let useMongoDB = !!contract;
-      
+
       if (!contract) {
         // Try Firebase
         contract = await firebaseStorage.getContract(req.params.id);
       }
-      
+
       if (!contract) {
         return res.status(404).json({ message: "Contract not found" });
       }
 
       // Check permissions
-      if (req.user!.role !== 'admin' && 
-          contract.landlordId !== req.user!.uid && 
-          contract.tenantId !== req.user!.uid) {
+      if (req.user!.role !== 'admin' &&
+        contract.landlordId !== req.user!.uid &&
+        contract.tenantId !== req.user!.uid) {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
 
@@ -1115,11 +1127,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         updatedContract = await firebaseStorage.updateContract(req.params.id, req.body);
       }
-      
+
       if (!updatedContract) {
         return res.status(404).json({ message: "Contract not found" });
       }
-      
+
       res.json(updatedContract);
     } catch (error) {
       console.error("Update contract error:", error);
@@ -1130,11 +1142,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/contracts/:id", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     console.log('[DELETE /api/contracts/:id] Request received for contract:', req.params.id);
     console.log('[DELETE /api/contracts/:id] User:', req.user?.uid);
-    
+
     try {
       const { password } = req.body;
       console.log('[DELETE /api/contracts/:id] Password provided:', !!password);
-      
+
       // Verify password is provided
       if (!password) {
         console.log('[DELETE /api/contracts/:id] ERROR: No password provided');
@@ -1161,12 +1173,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Try MongoDB first, fallback to Firebase
       let contract = await mongoDBStorage.getContract(req.params.id);
       let useMongoDB = !!contract;
-      
+
       if (!contract) {
         // Try Firebase
         contract = await firebaseStorage.getContract(req.params.id);
       }
-      
+
       if (!contract) {
         console.log('[DELETE /api/contracts/:id] ERROR: Contract not found');
         return res.status(404).json({ message: "Contract not found" });
@@ -1188,7 +1200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[DELETE /api/contracts/:id] Deleting from Firebase');
         await firebaseStorage.deleteContract(req.params.id);
       }
-      
+
       console.log('[DELETE /api/contracts/:id] SUCCESS: Contract deleted');
       res.status(200).json({ message: "Contract deleted successfully" });
     } catch (error: any) {
@@ -1201,13 +1213,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/payments", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const filters: any = {};
-      
+
       if (req.user!.role === 'landlord') {
         filters.landlordId = req.user!.uid;
       } else if (req.user!.role === 'tenant') {
         filters.tenantId = req.user!.uid;
       }
-      
+
       const payments = await firebaseStorage.getPayments(filters);
       res.json(payments);
     } catch (error) {
@@ -1294,7 +1306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Receipt upload error:", error);
       if (req.file) {
-        await fs.unlink(req.file.path).catch(() => {});
+        await fs.unlink(req.file.path).catch(() => { });
       }
       res.status(500).json({ message: error.message || "Failed to upload receipt" });
     }
@@ -1303,15 +1315,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pakistani Credit Card Payment Endpoint
   app.post("/api/payments/process-card", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { 
-        cardNumber, 
-        cardholderName, 
-        expiryDate, 
-        cvv, 
-        amount, 
-        contractId, 
-        landlordId, 
-        dueDate 
+      const {
+        cardNumber,
+        cardholderName,
+        expiryDate,
+        cvv,
+        amount,
+        contractId,
+        landlordId,
+        dueDate
       } = req.body;
 
       // Validate required fields
@@ -1345,7 +1357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Simulate payment processing with Pakistani payment gateway
       // In production, integrate with: PayPro, Bank Alfalah, HBL, UBL, or MCB payment gateway
       const transactionId = `PKR-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-      
+
       // Simulate processing delay
       await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -1382,8 +1394,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
       } else {
-        res.status(400).json({ 
-          message: "Payment failed. Please check your card details and try again." 
+        res.status(400).json({
+          message: "Payment failed. Please check your card details and try again."
         });
       }
     } catch (error: any) {
@@ -1475,11 +1487,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/documents", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const filters: any = {};
-      
+
       if (req.user!.role !== 'admin') {
         filters.userId = req.user!.uid;
       }
-      
+
       // Get from MongoDB
       const documents = await mongoDBStorage.getDocuments(filters);
       res.json(documents);
@@ -1546,7 +1558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/stats", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
       let stats;
-      
+
       if (req.user!.role === 'landlord') {
         // Use MongoDB for property stats
         const propertyStats = await mongoDBStorage.getLandlordStats(req.user!.uid);
@@ -1567,7 +1579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalProperties: allProperties.length,
         };
       }
-      
+
       res.json(stats);
     } catch (error) {
       console.error("Get dashboard stats error:", error);
@@ -1591,11 +1603,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/disputes", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const filters: any = {};
-      
+
       if (req.user!.role !== 'admin') {
         filters.raisedBy = req.user!.uid;
       }
-      
+
       const disputes = await firebaseStorage.getDisputes(filters);
       res.json(disputes);
     } catch (error) {
@@ -1609,12 +1621,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Dispute] Received request body:", req.body);
       console.log("[Dispute] Received files:", req.files);
       console.log("[Dispute] User:", req.user?.uid);
-      
+
       // Get form fields from req.body (multer puts them there)
       const { title, description, contractId, propertyId, category } = req.body;
-      
+
       console.log("[Dispute] Parsed fields:", { title, description, contractId, propertyId, category });
-      
+
       if (!title || !description || !contractId) {
         console.error("[Dispute] Missing required fields:", { title: !!title, description: !!description, contractId: !!contractId });
         return res.status(400).json({ message: "Title, description, and contract ID are required" });
@@ -1629,7 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Determine againstUser (if raisedBy is landlord, againstUser is tenant, and vice versa)
       const raisedBy = req.user!.uid;
       const againstUser = contract.landlordId === raisedBy ? contract.tenantId : contract.landlordId;
-      
+
       if (!againstUser) {
         return res.status(400).json({ message: "Could not determine the other party in the contract" });
       }
@@ -1641,14 +1653,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Validate file type
           const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
           if (!allowedMimeTypes.includes(file.mimetype)) {
-            await fs.unlink(file.path).catch(() => {});
+            await fs.unlink(file.path).catch(() => { });
             return res.status(400).json({ message: `File ${file.originalname} is not a valid type. Only JPEG, PNG, WebP images and PDF files are allowed.` });
           }
 
           // Validate file size (10MB max)
           const maxSize = 10 * 1024 * 1024; // 10MB
           if (file.size > maxSize) {
-            await fs.unlink(file.path).catch(() => {});
+            await fs.unlink(file.path).catch(() => { });
             return res.status(400).json({ message: `File ${file.originalname} is too large. Maximum size is 10MB.` });
           }
 
@@ -1694,7 +1706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!disputeData.contractId || !disputeData.raisedBy || !disputeData.againstUser || !disputeData.title || !disputeData.description) {
         return res.status(400).json({ message: "Missing required fields: contractId, raisedBy, againstUser, title, and description are required" });
       }
-      
+
       const dispute = await firebaseStorage.createDispute(disputeData as any);
       res.status(201).json(dispute);
     } catch (error: any) {
@@ -1704,14 +1716,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stack: error.stack,
         errors: error.errors
       });
-      
+
       // Clean up uploaded files if validation failed
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files) {
-          await fs.unlink(file.path).catch(() => {});
+          await fs.unlink(file.path).catch(() => { });
         }
       }
-      
+
       // Provide more detailed error message
       let errorMessage = "Invalid data provided";
       if (error.errors && Array.isArray(error.errors)) {
@@ -1719,7 +1731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       res.status(400).json({ message: errorMessage });
     }
   });

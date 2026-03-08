@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,27 +7,40 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Search, MapPin } from "lucide-react";
 
+export type SearchFiltersState = {
+  city: string;
+  propertyType: string;
+  minRent: string;
+  maxRent: string;
+  bedrooms: string;
+  aiSuggestions: boolean;
+};
+
 interface SearchFiltersProps {
-  onSearch: (filters: {
-    city: string;
-    propertyType: string;
-    minRent: string;
-    maxRent: string;
-    bedrooms: string;
-    aiSuggestions: boolean;
-  }) => void;
+  onSearch: (filters: SearchFiltersState) => void;
   variant?: 'default' | 'compact';
+  /** When provided, the filter form is controlled by parent (e.g. after AI applies filters) */
+  value?: Partial<SearchFiltersState>;
 }
 
-export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersProps) {
-  const [filters, setFilters] = useState({
-    city: "",
-    propertyType: "",
-    minRent: "",
-    maxRent: "",
-    bedrooms: "",
-    aiSuggestions: false,
-  });
+const defaultFilters: SearchFiltersState = {
+  city: "",
+  propertyType: "",
+  minRent: "",
+  maxRent: "",
+  bedrooms: "",
+  aiSuggestions: false,
+};
+
+export function SearchFilters({ onSearch, variant = 'default', value }: SearchFiltersProps) {
+  const [filters, setFilters] = useState<SearchFiltersState>(value ? { ...defaultFilters, ...value } : defaultFilters);
+
+  // Sync with parent when value changes (e.g. after AI applies filters)
+  useEffect(() => {
+    if (value != null && typeof value === 'object') {
+      setFilters((prev) => ({ ...prev, ...value }));
+    }
+  }, [value?.city, value?.propertyType, value?.minRent, value?.maxRent, value?.bedrooms]);
 
   const handleSearch = () => {
     onSearch(filters);
@@ -85,21 +98,34 @@ export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersPr
               <Label htmlFor="budget" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Budget (PKR)
               </Label>
-              <Select value={filters.minRent && filters.maxRent ? `${filters.minRent}-${filters.maxRent}` : 'any-any'} onValueChange={(value) => {
-                if (value === 'any-any') {
-                  updateFilter('minRent', '');
-                  updateFilter('maxRent', '');
-                } else {
-                  const [min, max] = value.split('-');
-                  updateFilter('minRent', min);
-                  updateFilter('maxRent', max);
-                }
-              }}>
+              <Select
+                value={(() => {
+                  const combo = filters.minRent && filters.maxRent ? `${filters.minRent}-${filters.maxRent}` : '';
+                  const presets = ['10000-25000', '25000-50000', '50000-100000', '100000-999999'];
+                  if (!combo) return 'any-any';
+                  return presets.includes(combo) ? combo : combo; // custom range stays as combo so Select shows it
+                })()}
+                onValueChange={(value) => {
+                  if (value === 'any-any') {
+                    updateFilter('minRent', '');
+                    updateFilter('maxRent', '');
+                  } else {
+                    const [min, max] = value.split('-');
+                    updateFilter('minRent', min);
+                    updateFilter('maxRent', max);
+                  }
+                }}
+              >
                 <SelectTrigger data-testid="select-budget">
                   <SelectValue placeholder="Any Budget" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="any-any">Any Budget</SelectItem>
+                  {filters.minRent && filters.maxRent && !['10000-25000', '25000-50000', '50000-100000', '100000-999999'].includes(`${filters.minRent}-${filters.maxRent}`) && (
+                    <SelectItem value={`${filters.minRent}-${filters.maxRent}`}>
+                      ₨{Number(filters.minRent).toLocaleString()} - ₨{Number(filters.maxRent).toLocaleString()}
+                    </SelectItem>
+                  )}
                   <SelectItem value="10000-25000">10k - 25k</SelectItem>
                   <SelectItem value="25000-50000">25k - 50k</SelectItem>
                   <SelectItem value="50000-100000">50k - 100k</SelectItem>
@@ -136,24 +162,6 @@ export function SearchFilters({ onSearch, variant = 'default' }: SearchFiltersPr
                 <Search className="mr-2 h-4 w-4" />
                 Search
               </Button>
-            </div>
-          </div>
-
-          {/* AI Suggestions Toggle */}
-          <div className={`${variant === 'compact' ? 'mt-3' : 'mt-4'} flex items-center justify-between`}>
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="ai-suggestions" 
-                checked={filters.aiSuggestions}
-                onCheckedChange={(checked) => updateFilter('aiSuggestions', checked as boolean)}
-                data-testid="checkbox-ai-suggestions"
-              />
-              <Label htmlFor="ai-suggestions" className="text-sm text-gray-700 dark:text-gray-300">
-                Enable AI-powered location suggestions
-              </Label>
-              <Badge variant="secondary" className="text-xs bg-warning-100 text-warning-700">
-                BETA
-              </Badge>
             </div>
           </div>
         </div>

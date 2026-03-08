@@ -44,6 +44,13 @@ contract RentalContract {
         address terminatedBy,
         uint256 timestamp
     );
+
+    event ContractModified(
+        string indexed contractId,
+        address indexed modifiedBy,
+        string fieldChanged,
+        uint256 timestamp
+    );
     
     // State variables
     mapping(string => Contract) public contracts;
@@ -159,6 +166,38 @@ contract RentalContract {
         return true;
     }
     
+    /**
+     * @dev Record a contract modification on-chain (emits event to notify parties)
+     */
+    function modifyContract(
+        string memory _contractId,
+        string memory _fieldChanged,
+        uint256 _newMonthlyRent,
+        uint256 _newSecurityDeposit,
+        uint256 _newEndDate,
+        string memory _newTermsHash
+    ) public contractExists(_contractId) onlyContractParties(_contractId) returns (bool) {
+        Contract storage contractData = contracts[_contractId];
+        require(contractData.status != 3, "Cannot modify terminated contract");
+
+        if (_newMonthlyRent > 0) {
+            contractData.monthlyRent = _newMonthlyRent;
+        }
+        if (_newSecurityDeposit > 0) {
+            contractData.securityDeposit = _newSecurityDeposit;
+        }
+        if (_newEndDate > contractData.startDate) {
+            contractData.endDate = _newEndDate;
+        }
+        if (bytes(_newTermsHash).length > 0) {
+            contractData.termsHash = _newTermsHash;
+        }
+
+        emit ContractModified(_contractId, msg.sender, _fieldChanged, block.timestamp);
+
+        return true;
+    }
+
     /**
      * @dev Get contract details
      */

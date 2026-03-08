@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/components/theme-provider";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,38 +12,80 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Moon, Sun, User, LogOut, Shield } from "lucide-react";
+import { Bell, Moon, Sun, User, LogOut, Shield, FileText, CheckCheck, Link2 } from "lucide-react";
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  contractId?: string;
+  blockchainHash?: string;
+  isRead: boolean;
+  createdAt: string;
+}
 
 export function Header() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
-  const notifications = user
-    ? [
-        ...(user.verificationStatus !== "verified"
-          ? [
-              {
-                id: "verification",
-                title: "Verification In Review",
-                description:
-                  "We are reviewing your submitted documents. We'll notify you once verification is complete.",
-                status: "pending",
-              },
-            ]
-          : [
-              {
-                id: "verification-success",
-                title: "Verification Complete",
-                description:
-                  "Your account is verified. You can now access all platform features.",
-                status: "success",
-              },
-            ]),
-      ]
+  // Fetch real notifications from API
+  const { data: dbNotifications = [] } = useQuery<Notification[]>({
+    queryKey: ["/api/notifications"],
+    queryFn: async () => {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/notifications", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user,
+    refetchInterval: 30000, // Poll every 30s
+  });
+
+  const markRead = useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem("token");
+      await fetch(`/api/notifications/${id}/read`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem("token");
+      await fetch("/api/notifications/read-all", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  // Merge verification status notification with DB notifications
+  const verificationNotif: Notification[] = user
+    ? user.verificationStatus !== "verified"
+      ? [
+          {
+            id: "verification",
+            type: "general",
+            title: "Verification In Review",
+            message: "We are reviewing your submitted documents. We'll notify you once verification is complete.",
+            isRead: false,
+            createdAt: new Date().toISOString(),
+          },
+        ]
+      : []
     : [];
 
-  const unreadCount = notifications.length;
+  const notifications = [...verificationNotif, ...dbNotifications];
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleLogout = () => {
     logout();
@@ -144,8 +187,18 @@ export function Header() {
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-80">
-                    <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                  <DropdownMenuContent align="end" className="w-96 max-h-[420px] overflow-y-auto">
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={() => markAllRead.mutate()}
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <CheckCheck className="h-3 w-3" /> Mark all read
+                        </button>
+                      )}
+                    </div>
                     <DropdownMenuSeparator />
                     {notifications.length === 0 ? (
                       <div className="px-3 py-6 text-sm text-gray-500 text-center">
@@ -155,13 +208,42 @@ export function Header() {
                       notifications.map((notification) => (
                         <DropdownMenuItem
                           key={notification.id}
-                          className="flex flex-col items-start gap-1 focus:bg-gray-50 dark:focus:bg-gray-800"
+                          className={`flex flex-col items-start gap-1 cursor-pointer ${
+                            notification.isRead ? "opacity-60" : "bg-primary/5"
+                          }`}
+                          onClick={() => {
+                            if (!notification.isRead && notification.id !== "verification") {
+                              markRead.mutate(notification.id);
+                            }
+                            if (notification.contractId) {
+                              setLocation("/contracts");
+                            }
+                          }}
                         >
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {notification.title}
+                          <div className="flex items-center gap-2 w-full">
+                            {notification.type === "contract_modified" ? (
+                              <FileText className="h-4 w-4 text-amber-500 shrink-0" />
+                            ) : (
+                              <Bell className="h-4 w-4 text-primary shrink-0" />
+                            )}
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white flex-1">
+                              {notification.title}
+                            </span>
+                            {!notification.isRead && (
+                              <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-300 pl-6">
+                            {notification.message}
                           </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-300">
-                            {notification.description}
+                          {notification.blockchainHash && (
+                            <span className="text-[10px] text-indigo-500 dark:text-indigo-400 pl-6 flex items-center gap-1 font-mono">
+                              <Link2 className="h-3 w-3" />
+                              {notification.blockchainHash.slice(0, 10)}...{notification.blockchainHash.slice(-8)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-gray-400 pl-6">
+                            {new Date(notification.createdAt).toLocaleString()}
                           </span>
                         </DropdownMenuItem>
                       ))

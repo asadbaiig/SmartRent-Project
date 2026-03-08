@@ -20,6 +20,11 @@ import Payments from "@/pages/payments";
 import Verification from "@/pages/verification";
 import Disputes from "@/pages/disputes";
 import AdminPortal from "@/pages/admin-portal";
+import HelpCenter from "@/pages/help";
+import TrustSafety from "@/pages/trust-safety";
+import PrivacyPolicy from "@/pages/privacy";
+import TermsOfService from "@/pages/terms";
+import CookiePolicy from "@/pages/cookies";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -48,6 +53,11 @@ function Router() {
           <Route path="/verification" component={Verification} />
           <Route path="/disputes" component={Disputes} />
           <Route path="/admin/portal" component={AdminPortal} />
+          <Route path="/help" component={HelpCenter} />
+          <Route path="/trust-safety" component={TrustSafety} />
+          <Route path="/privacy" component={PrivacyPolicy} />
+          <Route path="/terms" component={TermsOfService} />
+          <Route path="/cookies" component={CookiePolicy} />
           <Route component={NotFound} />
         </Switch>
       </main>

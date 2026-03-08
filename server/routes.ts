@@ -4,6 +4,8 @@ import { firebaseStorage } from "./firebase-storage";
 import { mongoDBStorage } from "./mongodb-storage";
 import { authenticateToken, requireRole, firebaseAuth, type AuthenticatedRequest } from "./firebase-auth";
 import { isMongoDBConnected } from "./mongodb";
+import { getNotificationModel } from "./mongodb-models";
+import { blockchainService } from "./blockchain-service";
 import multer from "multer";
 import path from "path";
 import { promises as fs } from "fs";
@@ -17,9 +19,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper: load properties from dataset folder (JSON or CSV)
   async function loadDatasetProperties(): Promise<any[]> {
     try {
-      const datasetDir = path.resolve(process.cwd(), "server", "dataset");
+      let datasetDir = path.resolve(process.cwd(), "server", "dataset");
+      let entries: string[] = [];
+      try {
+        entries = await fs.readdir(datasetDir);
+      } catch {
+        // Fallback: use AI service dataset so "View matching properties" works without copying CSV
+        datasetDir = path.resolve(process.cwd(), "ai-service", "dataset");
+        try {
+          entries = await fs.readdir(datasetDir);
+        } catch {
+          console.log("[Dataset] No server/dataset or ai-service/dataset folder");
+          return [];
+        }
+        console.log("[Dataset] Using ai-service/dataset (server/dataset not found)");
+      }
       console.log("[Dataset] Looking in:", datasetDir);
-      const entries = await fs.readdir(datasetDir);
       console.log("[Dataset] Found files:", entries);
       const candidate = entries.find((f) => f.toLowerCase().endsWith(".json") || f.toLowerCase().endsWith(".csv"));
       if (!candidate) {
@@ -35,8 +50,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parsed = JSON.parse(raw);
         items = Array.isArray(parsed) ? parsed : (parsed?.items || []);
       } else {
-        // CSV: first line headers. Limit to first 200 lines to avoid memory issues.
-        const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0).slice(0, 200);
+        // CSV: Load all lines efficiently without slicing to fetch all properties
+        const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
         if (lines.length === 0) return [];
         const splitCsv = (line: string): string[] => {
           const result: string[] = [];
@@ -63,6 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         const headers = splitCsv(lines[0]).map((h) => h.trim());
         console.log("[Dataset] CSV Headers:", headers.slice(0, 10), "...");
+        console.log("[Dataset] Total lines to process:", lines.length);
         const headerIndex: Record<string, number> = {};
         headers.forEach((h, idx) => {
           headerIndex[h.toLowerCase()] = idx;
@@ -75,13 +91,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           return fallback;
         };
-        for (let i = 1; i < lines.length && items.length < 50; i++) {
+        // Load all properties from CSV (removed the limit of 50 items)
+        for (let i = 1; i < lines.length; i++) {
           const cols = splitCsv(lines[i]);
           const obj: any = {};
           headers.forEach((h, idx) => (obj[h] = cols[idx]));
           // Map your specific CSV columns
           const propertyId = getVal(cols, ["property_id", "id"], "");
-          const city = getVal(cols, ["city"], "");
+          const city = getVal(cols, ["city"], "").trim(); // Trim whitespace from city
           const area = getVal(cols, ["location", "locality", "area"], "");
           const province = getVal(cols, ["province_name", "province"], "");
           const typeRaw = getVal(cols, ["property_type", "propertytype", "type"], "apartment");
@@ -90,6 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const bathrooms = getVal(cols, ["baths", "bathrooms"], "");
           const sqft = getVal(cols, ["area_sqft", "sqft", "size"], "");
           const priceRaw = getVal(cols, ["price"], "0");
+          const purpose = (getVal(cols, ["purpose"], "") || "").toString().trim();
           const latitudeRaw = getVal(cols, ["latitude", "lat"], "");
           const longitudeRaw = getVal(cols, ["longitude", "lng", "long", "lon"], "");
           const parseCoordinate = (value: any) => {
@@ -101,14 +119,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           const latitude = parseCoordinate(latitudeRaw);
           const longitude = parseCoordinate(longitudeRaw);
-          // Convert sale price to monthly rent estimate (divide by 240 months = 20 years)
           const priceNum = parseFloat(priceRaw.toString().replace(/[^\d.]/g, "")) || 0;
-          const rent = priceNum > 0 ? Math.round(priceNum / 240).toString() : "0";
+          // If CSV has "For Rent" purpose, price is already monthly rent (matches AI training)
+          const rent = priceNum > 0
+            ? (purpose.toLowerCase() === "for rent" ? Math.round(priceNum).toString() : Math.round(priceNum / 240).toString())
+            : "0";
           const address = getVal(cols, ["location", "locality"], "");
           const agent = getVal(cols, ["agent"], "");
           if (i === 1 && agent) {
             console.log("[Dataset] First property agent:", agent);
           }
+          // When CSV has purpose column, only include "For Rent" so budget filter matches AI suggestions
+          if (headerIndex["purpose"] !== undefined && purpose.toLowerCase() !== "for rent") continue;
+
           const title = `${type[0].toUpperCase()}${type.slice(1)}${bedrooms ? " " + bedrooms + " Bed" : ""}${area ? " in " + area : ""}${city ? ", " + city : ""}`.trim();
           const propertyObj: any = {
             id: propertyId || `ds-${i}`,
@@ -177,7 +200,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         office: "/uploads/4.jpeg",
       };
 
-      const mapped = items.slice(0, 50).map((p, idx) => {
+      // Map all items so filters (city, type, budget) can find matches across the full dataset
+      const mapped = items.map((p, idx) => {
         const propertyType = (p.propertyType || p.type || "apartment").toString().toLowerCase();
         const images = Array.isArray(p.images)
           ? p.images
@@ -502,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Properties routes
   app.get("/api/properties", async (req: Request, res: Response) => {
     try {
-      const { city, propertyType, minRent, maxRent, bedrooms, bedroomsMin, limit = 20, offset = 0 } = req.query;
+      const { city, propertyType, minRent, maxRent, bedrooms, bedroomsMin, bathrooms, sqftMin, limit = 20, offset = 0 } = req.query;
 
       const filters = {
         city: city as string,
@@ -511,10 +535,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxRent: maxRent ? Number(maxRent) : undefined,
         bedrooms: bedrooms ? Number(bedrooms) : undefined,
         bedroomsMin: bedroomsMin ? Number(bedroomsMin) : undefined, // For "3+" case
+        bathrooms: bathrooms ? Number(bathrooms) : undefined,
+        sqftMin: sqftMin ? Number(sqftMin) : undefined,
         isAvailable: true,
         limit: Number(limit),
         offset: Number(offset),
       };
+
+      console.log("[API /properties] Filters received:", JSON.stringify(filters));
 
       // Load from both MongoDB AND dataset, then merge
       const isMongoConnected = await import('./mongodb').then(m => m.isMongoDBConnected());
@@ -532,68 +560,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Always load dataset properties to supplement MongoDB
       console.log("[API /properties] Loading dataset properties...");
       const datasetItems = await loadDatasetProperties();
-      console.log("[API /properties] Dataset returned", datasetItems.length, "items");
+      console.log("[API /properties] Dataset total items:", datasetItems.length);
 
       // Apply filters to dataset properties
       let filteredDataset = datasetItems;
 
+      // City filter - exact match (case-insensitive)
       if (filters.city) {
-        filteredDataset = filteredDataset.filter(p =>
-          (p.city || '').toString().toLowerCase().includes(filters.city!.toLowerCase())
-        );
+        const cityLower = filters.city.toLowerCase().trim();
+        filteredDataset = filteredDataset.filter(p => {
+          const propCity = (p.city || '').toString().toLowerCase().trim();
+          return propCity === cityLower;
+        });
+        console.log("[API /properties] After city filter (", filters.city, "):", filteredDataset.length, "properties");
       }
 
+      // Property type filter
       if (filters.propertyType) {
         filteredDataset = filteredDataset.filter(p =>
           (p.propertyType || '').toString().toLowerCase() === filters.propertyType!.toLowerCase()
         );
+        console.log("[API /properties] After propertyType filter:", filteredDataset.length, "properties");
       }
 
+      // Min rent filter
       if (filters.minRent !== undefined) {
         filteredDataset = filteredDataset.filter(p => {
           const rent = Number(p.monthlyRent || 0);
           return rent >= filters.minRent!;
         });
+        console.log("[API /properties] After minRent filter:", filteredDataset.length, "properties");
       }
 
+      // Max rent filter
       if (filters.maxRent !== undefined) {
         filteredDataset = filteredDataset.filter(p => {
           const rent = Number(p.monthlyRent || 0);
           return rent <= filters.maxRent!;
         });
+        console.log("[API /properties] After maxRent filter:", filteredDataset.length, "properties");
       }
 
+      // Bedrooms filter
       if (filters.bedroomsMin !== undefined) {
         // For "3+" case - filter bedrooms >= 3
         filteredDataset = filteredDataset.filter(p => {
           const beds = Number(p.bedrooms || 0);
           return beds >= filters.bedroomsMin!;
         });
+        console.log("[API /properties] After bedroomsMin filter:", filteredDataset.length, "properties");
       } else if (filters.bedrooms !== undefined) {
         // Exact match for specific bedroom count
         filteredDataset = filteredDataset.filter(p => {
           const beds = Number(p.bedrooms || 0);
           return beds === filters.bedrooms!;
         });
+        console.log("[API /properties] After bedrooms filter:", filteredDataset.length, "properties");
+      }
+
+      // Bathrooms filter (if provided from AI suggestions)
+      if (filters.bathrooms !== undefined) {
+        filteredDataset = filteredDataset.filter(p => {
+          const baths = Number(p.bathrooms || 0);
+          return baths >= filters.bathrooms!; // At least the suggested number
+        });
+        console.log("[API /properties] After bathrooms filter:", filteredDataset.length, "properties");
+      }
+
+      // Square feet minimum filter (from AI suggestions)
+      if (filters.sqftMin !== undefined) {
+        filteredDataset = filteredDataset.filter(p => {
+          const sqft = Number(p.sqft || 0);
+          return sqft >= filters.sqftMin!; // At least the suggested size
+        });
+        console.log("[API /properties] After sqftMin filter:", filteredDataset.length, "properties");
       }
 
       // Only show available properties
       filteredDataset = filteredDataset.filter(p => p.isAvailable !== false);
 
-      // Merge: MongoDB properties first, then filtered dataset properties
-      const allProperties = [...mongoProperties, ...filteredDataset];
-      console.log("[API /properties] Total combined:", allProperties.length, "properties");
+      // Merge: Dataset properties first (prioritize actual data)
+      const allProperties = [...filteredDataset, ...mongoProperties];
+      console.log("[API /properties] Total combined after all filters:", allProperties.length, "properties");
 
       res.setHeader("Cache-Control", "no-store");
 
       if (allProperties.length > 0) {
         const sliced = allProperties.slice(Number(offset) || 0, (Number(offset) || 0) + (Number(limit) || 20));
-        console.log("[API /properties] Returning", sliced.length, "items");
+        console.log("[API /properties] Returning", sliced.length, "items (offset:", offset, "limit:", limit, ")");
         return res.json(sliced);
       }
 
-      // Only if both sources are empty, use demo data
-      if (allProperties.length === 0) {
+      // Only if both sources are empty AND no filters applied, use demo data
+      if (allProperties.length === 0 && !filters.city && !filters.propertyType && filters.minRent === undefined && filters.maxRent === undefined) {
         // Fallback demo items so UI has content when DB is empty
         const demo = [
           {
@@ -979,6 +1038,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─────────────────────────────────────────────
+  // AI PRICE SUGGESTION (calls Python FastAPI)
+  // ─────────────────────────────────────────────
+  const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+
+  app.post("/api/ai/price-suggestion", async (req: Request, res: Response) => {
+    try {
+      const { city, propertyType, sqft, bedrooms, bathrooms, area } = req.body;
+
+      // Validate required fields
+      if (!city || !propertyType || !sqft) {
+        return res.status(400).json({
+          error: "city, propertyType, and sqft are required"
+        });
+      }
+
+      console.log(`[AI Service] Received request: city=${city}, type=${propertyType}, sqft=${sqft}`);
+
+      // Call the Python AI service
+      const aiResponse = await fetch(`${AI_SERVICE_URL}/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city,
+          property_type: propertyType,   // map camelCase → snake_case
+          sqft: Number(sqft),
+          bedrooms: bedrooms ? Number(bedrooms) : undefined,
+          bathrooms: bathrooms ? Number(bathrooms) : undefined,
+          area: area || null,
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        const errText = await aiResponse.text();
+        console.error("[AI Service] Error response:", errText);
+        return res.status(502).json({ 
+          error: "AI service unavailable",
+          details: errText 
+        });
+      }
+
+      const aiData = await aiResponse.json();
+      console.log(`[AI Service] Prediction returned: ₨${aiData.suggested_price}`);
+
+      // Return in the format your frontend expects
+      return res.json({
+        suggestedPrice: aiData.suggested_price,
+        priceRangeMin: aiData.price_range_min,
+        priceRangeMax: aiData.price_range_max,
+        confidence: aiData.confidence,
+        description: aiData.message,
+        currency: "PKR",
+        featuresUsed: aiData.features_used,
+      });
+
+    } catch (error: any) {
+      console.error("[AI Service] Error:", error.message);
+      return res.status(500).json({ 
+        error: "Internal server error",
+        details: error.message 
+      });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // AI MODEL INFO (diagnostic endpoint)
+  // ─────────────────────────────────────────────
+  app.get("/api/ai/model-info", async (req: Request, res: Response) => {
+    try {
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+      const response = await fetch(`${AI_SERVICE_URL}/model-info`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      res.status(503).json({ error: "AI service unavailable" });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // AI SERVICE HEALTH CHECK
+  // ─────────────────────────────────────────────
+  app.get("/api/ai/health", async (req: Request, res: Response) => {
+    try {
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+      const response = await fetch(`${AI_SERVICE_URL}/health`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      res.status(503).json({ status: "unavailable", error: "AI service unreachable" });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // AI AREA / NEIGHBORHOOD INSIGHTS (proxy to ai-service)
+  // ─────────────────────────────────────────────
+  app.get("/api/ai/area-stats", async (req: Request, res: Response) => {
+    try {
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+      const params = new URLSearchParams();
+      const city = req.query.city as string | undefined;
+      const propertyType = req.query.propertyType as string | undefined;
+      const area = req.query.area as string | undefined;
+      const bedrooms = req.query.bedrooms as string | undefined;
+      if (city) params.set("city", city);
+      if (propertyType) params.set("property_type", propertyType);
+      if (area) params.set("area", area);
+      if (bedrooms) params.set("bedrooms", bedrooms);
+      const url = `${AI_SERVICE_URL}/area-stats${params.toString() ? `?${params.toString()}` : ""}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errText = await response.text();
+        return res.status(response.status).json({ error: errText || "AI service error" });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("[AI area-stats] Error:", error?.message);
+      res.status(503).json({ error: "AI service unavailable", details: error?.message });
+    }
+  });
+
   // Contracts routes
   app.get("/api/contracts", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -1132,6 +1312,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contract not found" });
       }
 
+      // Determine what fields changed
+      const changedFields: string[] = [];
+      if (req.body.monthlyRent && req.body.monthlyRent !== contract.monthlyRent) changedFields.push("monthly rent");
+      if (req.body.securityDeposit && req.body.securityDeposit !== contract.securityDeposit) changedFields.push("security deposit");
+      if (req.body.endDate && req.body.endDate !== contract.endDate) changedFields.push("end date");
+      if (req.body.status && req.body.status !== contract.status) changedFields.push("status");
+      if (req.body.terms) changedFields.push("terms");
+      const fieldSummary = changedFields.length > 0 ? changedFields.join(", ") : "contract details";
+
+      // Record modification on blockchain
+      let blockchainHash: string | null = null;
+      try {
+        if (blockchainService.isEnabled()) {
+          blockchainHash = await blockchainService.modifyContract(
+            req.params.id,
+            fieldSummary,
+            req.body.monthlyRent ? Number(req.body.monthlyRent) : undefined,
+            req.body.securityDeposit ? Number(req.body.securityDeposit) : undefined,
+            req.body.endDate ? new Date(req.body.endDate) : undefined,
+          );
+        }
+      } catch (bcErr) {
+        console.warn("[Contracts] Blockchain modify failed (non-blocking):", bcErr);
+      }
+
+      // Notify all contract parties
+      try {
+        const NotificationModel = await getNotificationModel();
+        const modifierName = req.user!.uid;
+        const partyIds = [contract.landlordId, contract.tenantId].filter(
+          (id) => id !== req.user!.uid
+        );
+
+        const notifications = partyIds.map((userId) => ({
+          userId,
+          type: "contract_modified",
+          title: "Contract Modified",
+          message: `A contract you are part of has been updated (${fieldSummary}).${blockchainHash ? " This change is recorded on the blockchain." : ""}`,
+          contractId: req.params.id,
+          blockchainHash: blockchainHash || undefined,
+          isRead: false,
+          createdAt: new Date(),
+        }));
+
+        if (notifications.length > 0) {
+          await NotificationModel.insertMany(notifications);
+          console.log(`[Contracts] Sent ${notifications.length} modification notifications`);
+        }
+      } catch (notifErr) {
+        console.warn("[Contracts] Failed to create notifications (non-blocking):", notifErr);
+      }
+
       res.json(updatedContract);
     } catch (error) {
       console.error("Update contract error:", error);
@@ -1206,6 +1438,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Delete contract error:", error);
       res.status(500).json({ message: error.message || "Failed to delete contract" });
+    }
+  });
+
+  // ─── Notification routes ──────────────────────────────────────────────────────
+
+  // Get notifications for the current user
+  app.get("/api/notifications", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const NotificationModel = await getNotificationModel();
+      const notifications = await NotificationModel.find({ userId: req.user!.uid })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .exec();
+
+      res.json(
+        notifications.map((n: any) => ({
+          id: n._id.toString(),
+          userId: n.userId,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          contractId: n.contractId,
+          blockchainHash: n.blockchainHash,
+          isRead: n.isRead,
+          createdAt: n.createdAt,
+        }))
+      );
+    } catch (error) {
+      console.error("Get notifications error:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  // Mark notification as read
+  app.put("/api/notifications/:id/read", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const NotificationModel = await getNotificationModel();
+      const notification = await NotificationModel.findOneAndUpdate(
+        { _id: req.params.id, userId: req.user!.uid },
+        { isRead: true },
+        { new: true }
+      );
+      if (!notification) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Mark notification read error:", error);
+      res.status(500).json({ message: "Failed to update notification" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.put("/api/notifications/read-all", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const NotificationModel = await getNotificationModel();
+      await NotificationModel.updateMany(
+        { userId: req.user!.uid, isRead: false },
+        { isRead: true }
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Mark all read error:", error);
+      res.status(500).json({ message: "Failed to update notifications" });
     }
   });
 

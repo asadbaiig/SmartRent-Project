@@ -340,22 +340,22 @@ export default function Payments() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'paid': return 'bg-success-100 text-success-700';
-      case 'pending': return 'bg-warning-100 text-warning-700';
-      case 'overdue': return 'bg-red-100 text-red-700';
-      case 'failed': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 'paid': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200';
+      case 'pending': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200';
+      case 'overdue': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
+      case 'failed': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
+      default: return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
     }
   };
 
   if (!user) {
     return (
-      <motion.div className="min-h-screen flex items-center justify-center" initial="hidden" animate="visible" variants={fadeInUp}>
+      <motion.div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950" initial="hidden" animate="visible" variants={fadeInUp}>
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Access Denied</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">Please login to view payments</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Access Denied</h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-4">Please sign in to view payments</p>
           <Button asChild data-testid="button-login">
-            <Link href="/login">Login</Link>
+            <Link href="/login">Sign in</Link>
           </Button>
         </div>
       </motion.div>
@@ -364,58 +364,69 @@ export default function Payments() {
 
   return (
     <motion.div 
-      className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8"
+      className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8"
       initial="hidden"
       animate="visible"
-      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.18 } } }}
+      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12 } } }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div className="mb-8" variants={fadeInUp}>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Payment Management</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Secure, automated rent collection with Pakistani payment methods
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50 text-primary-600 dark:text-primary-400">
+              <CreditCard className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Payment Management</h1>
+              <p className="text-slate-600 dark:text-slate-400 mt-0.5 text-sm">
+                Secure rent collection with Pakistani payment methods
+              </p>
+            </div>
+          </div>
         </motion.div>
 
         <motion.div 
-          className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
           variants={staggerContainer}
         >
           {/* Payment Form */}
           <motion.div className="lg:col-span-2" variants={fadeInUp}>
-            <Card className="transition-transform duration-500 hover:-translate-y-1">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Make Payment</span>
-                  <Badge className="bg-success-100 text-success-700">Secure SSL</Badge>
-                </CardTitle>
+            <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+                    <span>Make Payment</span>
+                  </CardTitle>
+                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 border-0">
+                    Secure SSL
+                  </Badge>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
                 {/* Payment Summary */}
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 mb-6 border border-gray-200 dark:border-gray-700">
-                  <h3 className="font-semibold mb-4">Payment Summary</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Monthly Rent</span>
-                      <span className="font-semibold">₨{currentRent.amount.toLocaleString()}</span>
+                <div className="rounded-xl bg-slate-100/80 dark:bg-slate-800/60 p-5 border border-slate-200 dark:border-slate-600">
+                  <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Payment Summary</h3>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600 dark:text-slate-400">Monthly Rent</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">₨{currentRent.amount.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Processing Fee</span>
-                      <span className="font-semibold">₨{currentRent.processingFee}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600 dark:text-slate-400">Processing Fee</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">₨{currentRent.processingFee}</span>
                     </div>
-                    <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
-                      <div className="flex justify-between">
-                        <span className="text-lg font-semibold">Total Amount</span>
-                        <span className="text-xl font-bold text-primary-600">₨{totalAmount.toLocaleString()}</span>
+                    <div className="border-t border-slate-200 dark:border-slate-600 pt-3 mt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-slate-900 dark:text-white">Total Amount</span>
+                        <span className="text-xl font-bold text-primary-600 dark:text-primary-400">₨{totalAmount.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Payment Methods */}
-                <div className="mb-6">
-                  <h4 className="text-lg font-semibold mb-4">Payment Method</h4>
-                  <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Payment Method</h4>
+                  <div className="grid grid-cols-2 gap-3">
                     {[
                       { id: "bank", icon: Building2, label: "Bank Transfer" },
                       { id: "card", icon: CreditCard, label: "Debit/Credit Card" },
@@ -424,10 +435,10 @@ export default function Payments() {
                     ].map(({ id, icon: Icon, label }) => (
                       <label 
                         key={id}
-                        className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                        className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
                           selectedMethod === id 
-                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900' 
-                            : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            ? 'border-primary-500 dark:border-primary-500 bg-primary-50 dark:bg-primary-900/40 shadow-sm' 
+                            : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                         }`}
                       >
                         <input
@@ -436,11 +447,13 @@ export default function Payments() {
                           value={id}
                           checked={selectedMethod === id}
                           onChange={(e) => setSelectedMethod(e.target.value)}
-                          className="mr-3"
+                          className="sr-only"
                           data-testid={`radio-${id}`}
                         />
-                        <Icon className="mr-3 h-5 w-5 text-primary-500" />
-                        <span className="text-gray-900 dark:text-white">{label}</span>
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${selectedMethod === id ? 'bg-primary-200 dark:bg-primary-800' : 'bg-slate-200 dark:bg-slate-700'}`}>
+                          <Icon className={`h-5 w-5 ${selectedMethod === id ? 'text-primary-700 dark:text-primary-300' : 'text-slate-600 dark:text-slate-400'}`} />
+                        </div>
+                        <span className="font-medium text-slate-900 dark:text-white text-sm">{label}</span>
                       </label>
                     ))}
                   </div>
@@ -448,69 +461,69 @@ export default function Payments() {
 
                 {/* Payment Method Details */}
                 {selectedMethod === "easypaisa" && (
-                  <div className="mb-6 p-6 bg-primary-50 dark:bg-primary-900 border border-primary-200 dark:border-primary-700 rounded-lg">
-                    <h4 className="font-semibold mb-4 text-primary-900 dark:text-primary-100">Easypaisa Payment Details</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Account Number:</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">+92 3365447781</span>
+                  <div className="p-5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-600">
+                    <h4 className="font-semibold mb-3 text-slate-900 dark:text-white">Easypaisa Payment Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-400">Account Number</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">+92 3365447781</span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Account Name:</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">MUHAMMAD ASAD BAIG</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-400">Account Name</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">MUHAMMAD ASAD BAIG</span>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-4">
-                      Send the payment amount to this Easypaisa account and upload the receipt.
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-4">
+                      Send the amount to this Easypaisa account and upload the receipt below.
                     </p>
                   </div>
                 )}
 
                 {selectedMethod === "bank" && (
-                  <div className="mb-6 p-6 bg-primary-50 dark:bg-primary-900 border border-primary-200 dark:border-primary-700 rounded-lg">
-                    <h4 className="font-semibold mb-4 text-primary-900 dark:text-primary-100">Bank Transfer Details</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Account Number:</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">+92 3365447781</span>
+                  <div className="p-5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-600">
+                    <h4 className="font-semibold mb-3 text-slate-900 dark:text-white">Bank Transfer Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-400">Account Number</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">+92 3365447781</span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Account Name:</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">Muhammad Asad Baig</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-400">Account Name</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">Muhammad Asad Baig</span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Bank:</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">Sadapay</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-400">Bank</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">Sadapay</span>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-4">
-                      Transfer the payment amount to this bank account and upload the receipt.
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-4">
+                      Transfer the amount to this account and upload the receipt below.
                     </p>
                   </div>
                 )}
 
                 {selectedMethod === "jazzcash" && (
-                  <div className="mb-6 p-6 bg-primary-50 dark:bg-primary-900 border border-primary-200 dark:border-primary-700 rounded-lg">
-                    <h4 className="font-semibold mb-4 text-primary-900 dark:text-primary-100">JazzCash Payment Details</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Account Number:</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">+92 3365447781</span>
+                  <div className="p-5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-600">
+                    <h4 className="font-semibold mb-3 text-slate-900 dark:text-white">JazzCash Payment Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-400">Account Number</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">+92 3365447781</span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Account Name:</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">Muhammad Asad Baig</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-400">Account Name</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">Muhammad Asad Baig</span>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-4">
-                      Send the payment amount to this JazzCash account and upload the receipt.
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-4">
+                      Send the amount to this JazzCash account and upload the receipt below.
                     </p>
                   </div>
                 )}
 
                 {/* Pakistani Credit Card Form */}
                 {selectedMethod === "card" && (
-                  <form onSubmit={handleCardPayment} className="space-y-4 mb-6">
+                  <form onSubmit={handleCardPayment} className="space-y-4">
                     <div>
                       <Label htmlFor="cardholderName">Cardholder Name</Label>
                       <Input
@@ -535,7 +548,7 @@ export default function Payments() {
                         disabled={isProcessing}
                         data-testid="input-card-number"
                       />
-                      <p className="text-xs text-gray-500 mt-1">16-digit card number</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">16-digit card number</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -590,17 +603,17 @@ export default function Payments() {
 
                 {/* Receipt Upload Section (for non-card payments) */}
                 {selectedMethod !== "card" && (
-                  <div className="mb-6 space-y-4">
+                  <div className="space-y-4">
                     <div>
-                      <Label htmlFor="receipt" className="text-base font-semibold mb-2 block">
+                      <Label htmlFor="receipt" className="text-sm font-semibold text-slate-900 dark:text-white mb-2 block">
                         Upload Payment Receipt
                       </Label>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        Please upload a screenshot or photo of your payment receipt (JPEG, PNG, WebP, or PDF)
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                        Screenshot or photo of your payment receipt (JPEG, PNG, WebP, or PDF)
                       </p>
                       
                       {!receiptFile ? (
-                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-primary-500 transition-colors">
+                        <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:border-primary-500 dark:hover:border-primary-500 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                           <input
                             type="file"
                             id="receipt"
@@ -612,24 +625,24 @@ export default function Payments() {
                             htmlFor="receipt"
                             className="cursor-pointer flex flex-col items-center"
                           >
-                            <Upload className="h-10 w-10 text-gray-400 mb-2" />
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                            <Upload className="h-10 w-10 text-slate-400 dark:text-slate-500 mb-2" />
+                            <span className="text-sm text-slate-600 dark:text-slate-400">
                               Click to upload or drag and drop
                             </span>
-                            <span className="text-xs text-gray-500 mt-1">
-                              Max file size: 10MB
+                            <span className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                              Max 10MB
                             </span>
                           </label>
                         </div>
                       ) : (
-                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                        <div className="border border-slate-200 dark:border-slate-600 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/30">
                           <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <FileImage className="h-5 w-5 text-primary-500" />
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <FileImage className="h-5 w-5 text-primary-500 dark:text-primary-400 shrink-0" />
+                              <span className="text-sm font-medium text-slate-900 dark:text-white truncate">
                                 {receiptFile.name}
                               </span>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
                                 ({(receiptFile.size / 1024).toFixed(1)} KB)
                               </span>
                             </div>
@@ -649,7 +662,7 @@ export default function Payments() {
                               <img
                                 src={receiptPreview}
                                 alt="Receipt preview"
-                                className="max-h-48 w-auto rounded border border-gray-200 dark:border-gray-700"
+                                className="max-h-48 w-auto rounded-lg border border-slate-200 dark:border-slate-600"
                               />
                             </div>
                           )}
@@ -676,10 +689,10 @@ export default function Payments() {
                           )}
                           
                           {uploadedReceiptId && (
-                            <div className="mt-3 p-3 bg-success-50 dark:bg-success-900 border border-success-200 dark:border-success-700 rounded-lg">
+                            <div className="mt-3 p-3 bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700 rounded-lg">
                               <div className="flex items-center space-x-2">
-                                <CheckCircle className="h-5 w-5 text-success-600 dark:text-success-400" />
-                                <span className="text-sm text-success-800 dark:text-success-200">
+                                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                <span className="text-sm text-emerald-800 dark:text-emerald-200">
                                   Receipt uploaded successfully!
                                 </span>
                               </div>
@@ -689,7 +702,7 @@ export default function Payments() {
                       )}
                     </div>
 
-                    <form onSubmit={handlePayment} className="mb-6">
+                    <form onSubmit={handlePayment}>
                       <Button 
                         type="submit" 
                         className="w-full" 
@@ -705,20 +718,20 @@ export default function Payments() {
                 )}
 
                 {/* Auto-pay Setup */}
-                <div className="mb-6 p-4 bg-primary-50 dark:bg-primary-900 border border-primary-200 dark:border-primary-700 rounded-lg">
-                  <div className="flex items-center space-x-3">
+                <div className="p-4 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-600">
+                  <div className="flex items-center gap-3">
                     <Checkbox 
                       id="autopay" 
                       checked={autoPayEnabled}
                       onCheckedChange={(checked) => setAutoPayEnabled(checked as boolean)}
                       data-testid="checkbox-autopay"
                     />
-                    <Label htmlFor="autopay" className="text-primary-900 dark:text-primary-100 font-medium">
+                    <Label htmlFor="autopay" className="text-slate-900 dark:text-white font-medium cursor-pointer">
                       Enable Auto-Pay
                     </Label>
                   </div>
-                  <p className="text-sm text-primary-700 dark:text-primary-200 mt-2 ml-6">
-                    Automatically pay rent on the same date each month. You can disable this anytime.
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 ml-7">
+                    Pay rent automatically on the same date each month. You can disable this anytime.
                   </p>
                 </div>
               </CardContent>
@@ -726,124 +739,126 @@ export default function Payments() {
           </motion.div>
 
           {/* Sidebar */}
-          <motion.div className="space-y-6" variants={staggerContainer}>
+          <motion.div className="space-y-5" variants={staggerContainer}>
             {/* Payment History */}
             <motion.div variants={fadeInUp}>
-            <Card className="transition-transform duration-500 hover:-translate-y-1">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <History className="h-5 w-5" />
-                  <span>Recent Payments</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="space-y-4">
-                    {Array.from({ length: 3 }, (_, i) => (
-                      <div key={i} className="animate-pulse">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : payments.length === 0 ? (
-                  <div className="text-center py-6">
-                    <AlertCircle className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-500">No payment history</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {payments.slice(0, 3).map((payment: any, index: number) => (
-                      <div key={payment.id || index} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {payment.paidDate ? new Date(payment.paidDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Payment'}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {payment.paidDate ? `Paid on ${new Date(payment.paidDate).toLocaleDateString()}` : 'Pending'}
-                          </p>
+              <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-base">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-700">
+                      <History className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                    </div>
+                    Recent Payments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }, (_, i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded mb-2" />
+                          <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900 dark:text-white">₨{parseFloat(payment.amount || 0).toLocaleString()}</p>
-                          <Badge className={getStatusColor(payment.status || 'pending')}>
-                            {payment.status || 'pending'}
-                          </Badge>
+                      ))}
+                    </div>
+                  ) : payments.length === 0 ? (
+                    <div className="text-center py-6">
+                      <AlertCircle className="mx-auto h-8 w-8 text-slate-400 dark:text-slate-500 mb-2" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No payment history</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {payments.slice(0, 3).map((payment: any, index: number) => (
+                        <div key={payment.id || index} className="flex justify-between items-center p-3 rounded-xl bg-slate-100/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600">
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-900 dark:text-white text-sm">
+                              {payment.paidDate ? new Date(payment.paidDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Payment'}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {payment.paidDate ? `Paid ${new Date(payment.paidDate).toLocaleDateString()}` : 'Pending'}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0 ml-2">
+                            <p className="font-semibold text-slate-900 dark:text-white text-sm">₨{parseFloat(payment.amount || 0).toLocaleString()}</p>
+                            <Badge className={`text-xs ${getStatusColor(payment.status || 'pending')}`}>
+                              {payment.status || 'pending'}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                <Button variant="ghost" className="w-full mt-4" data-testid="button-view-all-payments">
-                  View All Payments
-                </Button>
-              </CardContent>
-            </Card>
+                      ))}
+                    </div>
+                  )}
+                  <Button variant="outline" className="w-full mt-4 text-sm" data-testid="button-view-all-payments">
+                    View All Payments
+                  </Button>
+                </CardContent>
+              </Card>
             </motion.div>
 
             {/* Security Info */}
             <motion.div variants={fadeInUp}>
-            <Card className="bg-success-50 dark:bg-success-900 border-success-200 dark:border-success-700 transition-transform duration-500 hover:-translate-y-1">
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-3">
-                  <Lock className="text-success-500 mt-1 h-5 w-5" />
-                  <div>
-                    <h4 className="text-success-900 dark:text-success-100 font-semibold mb-2">
-                      Secure Payments
-                    </h4>
-                    <ul className="text-success-700 dark:text-success-200 text-sm space-y-1">
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3" />
-                        256-bit SSL encryption
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3" />
-                        PCI-DSS compliant
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3" />
-                        Pakistani banking standards
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="mr-2 h-3 w-3" />
-                        Instant payment confirmation
-                      </li>
-                    </ul>
+              <Card className="border-2 border-emerald-200 dark:border-slate-600 bg-emerald-50/80 dark:bg-slate-800/60 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-200 dark:bg-emerald-900/60">
+                      <Lock className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm">
+                        Secure Payments
+                      </h4>
+                      <ul className="text-slate-700 dark:text-slate-300 text-sm space-y-1.5">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          256-bit SSL encryption
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          PCI-DSS compliant
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          Pakistani banking standards
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          Instant confirmation
+                        </li>
+                      </ul>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
             </motion.div>
 
             {/* Next Payment Due */}
             <motion.div variants={fadeInUp}>
-            <Card className="transition-transform duration-500 hover:-translate-y-1">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5" />
-                  <span>Next Payment</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                    ₨{currentRent.amount.toLocaleString()}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Due on {currentRent.dueDate.toLocaleDateString()}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {currentRent.property}
-                  </p>
-                  
-                  <div className="mt-4">
-                    <Badge variant="secondary" className="bg-warning-100 text-warning-700">
+              <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-base">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
+                      <Calendar className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                    </div>
+                    Next Payment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+                      ₨{currentRent.amount.toLocaleString()}
+                    </p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+                      Due {currentRent.dueDate.toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-500 mb-3 truncate px-2">
+                      {currentRent.property}
+                    </p>
+                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
                       Due in {Math.ceil((currentRent.dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days
                     </Badge>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
             </motion.div>
           </motion.div>
         </motion.div>

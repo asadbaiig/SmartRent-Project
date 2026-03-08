@@ -24,7 +24,6 @@ import {
   XCircle,
   Calendar,
   DollarSign,
-  Bot,
   Shield,
   Gavel,
   Trash2
@@ -50,6 +49,7 @@ export default function Contracts() {
   const [contractToDelete, setContractToDelete] = useState<string | null>(null);
   const [viewingContract, setViewingContract] = useState<any | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  // Edit contract state removed
 
   // Set active tab based on current route
   useEffect(() => {
@@ -270,6 +270,7 @@ export default function Contracts() {
                       <Eye className="mr-1 h-3 w-3" />
                       View
                     </Button>
+                    {/* Edit button removed */}
                     {user?.role === 'landlord' && contract.landlordId === user.id && (
                       <Button 
                         size="sm" 
@@ -588,30 +589,15 @@ export default function Contracts() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="monthlyRent">Monthly Rent (PKR)</Label>
-                    <div className="relative">
-                      <Input
-                        id="monthlyRent"
-                        type="number"
-                        value={formData.monthlyRent}
-                        onChange={(e) => updateField('monthlyRent', e.target.value)}
-                        placeholder="45000"
-                        required
-                        data-testid="input-monthly-rent"
-                      />
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm"
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-warning-600"
-                        data-testid="button-ai-price"
-                      >
-                        <Bot className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-warning-600 mt-1">
-                      <Bot className="inline h-3 w-3 mr-1" />
-                      AI suggests: ₨42,000 - ₨48,000
-                    </p>
+                    <Input
+                      id="monthlyRent"
+                      type="number"
+                      value={formData.monthlyRent}
+                      onChange={(e) => updateField('monthlyRent', e.target.value)}
+                      placeholder="45000"
+                      required
+                      data-testid="input-monthly-rent"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="securityDeposit">Security Deposit</Label>
@@ -733,63 +719,79 @@ export default function Contracts() {
           {/* Features Sidebar */}
           <motion.div className="space-y-6 flex flex-col" variants={containerStagger}>
             {/* Blockchain Security */}
-            <motion.div variants={fadeInUp} className="flex-1">
-              <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700 h-full flex flex-col">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Shield className="h-5 w-5" />
+            <motion.div variants={fadeInUp} className="flex-1 min-h-0">
+              <Card className="h-full flex flex-col border-2 border-primary-200 dark:border-slate-600 bg-gradient-to-br from-primary-50 to-primary-100/80 dark:from-slate-800 dark:to-slate-800/90 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center space-x-2 text-slate-900 dark:text-white">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-200/80 dark:bg-slate-700">
+                      <Shield className="h-5 w-5 text-primary-700 dark:text-primary-300" />
+                    </div>
                     <span>Blockchain Security</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1">
-                  <p className="text-primary-700 dark:text-primary-200 text-sm mb-4">
+                <CardContent className="flex-1 flex flex-col pt-0">
+                  <p className="text-slate-700 dark:text-slate-200 text-sm leading-relaxed mb-4">
                     Your contract will be stored on a secure blockchain, making it tamper-proof and legally binding.
                   </p>
-                  <ul className="text-primary-700 dark:text-primary-200 text-sm space-y-2">
-                    <li className="flex items-center">
-                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
-                      Immutable record
+                  <ul className="text-slate-700 dark:text-slate-200 text-sm space-y-2.5 flex-1">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>Immutable record</span>
                     </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
-                      Digital signatures
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>Digital signatures</span>
                     </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
-                      Automated compliance
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>Automated compliance</span>
                     </li>
                   </ul>
+                  <div className="mt-4 pt-4 border-t border-primary-200/60 dark:border-slate-600">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Shield className="h-3.5 w-3.5" />
+                      Secured by SmartRent
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
 
             {/* Legal Compliance */}
-            <motion.div variants={fadeInUp} className="flex-1">
-              <Card className="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900 dark:to-success-800 border-success-200 dark:border-success-700 h-full flex flex-col">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Gavel className="h-5 w-5" />
+            <motion.div variants={fadeInUp} className="flex-1 min-h-0">
+              <Card className="h-full flex flex-col border-2 border-success-200 dark:border-slate-600 bg-gradient-to-br from-success-50 to-success-100/80 dark:from-slate-800 dark:to-slate-800/90 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center space-x-2 text-slate-900 dark:text-white">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-success-200/80 dark:bg-slate-700">
+                      <Gavel className="h-5 w-5 text-success-700 dark:text-success-400" />
+                    </div>
                     <span>Legal Compliance</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1">
-                  <p className="text-success-700 dark:text-success-200 text-sm mb-4">
+                <CardContent className="flex-1 flex flex-col pt-0">
+                  <p className="text-slate-700 dark:text-slate-200 text-sm leading-relaxed mb-4">
                     Automatically ensures compliance with Pakistani rental laws and regulations.
                   </p>
-                  <ul className="text-success-700 dark:text-success-200 text-sm space-y-2">
-                    <li className="flex items-center">
-                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
-                      Standard clauses included
+                  <ul className="text-slate-700 dark:text-slate-200 text-sm space-y-2.5 flex-1">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>Standard clauses included</span>
                     </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
-                      Legal requirement validation
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>Legal requirement validation</span>
                     </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="mr-2 h-4 w-4 text-success-600" />
-                      Court-admissible format
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>Court-admissible format</span>
                     </li>
                   </ul>
+                  <div className="mt-4 pt-4 border-t border-success-200/60 dark:border-slate-600">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Gavel className="h-3.5 w-3.5" />
+                      Compliant with local law
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -797,7 +799,9 @@ export default function Contracts() {
         </motion.div>
       </motion.div>
     );
-  };
+  }
+
+
 
   if (!user) {
     return (
@@ -823,38 +827,38 @@ export default function Contracts() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div variants={fadeInUp}>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="list" data-testid="tab-list">My Contracts</TabsTrigger>
-                {user?.role === 'landlord' && (
-                  <TabsTrigger value="create" data-testid="tab-create">Create Contract</TabsTrigger>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="mb-6">
+                <TabsTrigger value="list">Contracts</TabsTrigger>
+                {user?.role === "landlord" && (
+                  <TabsTrigger value="create">Create Contract</TabsTrigger>
                 )}
               </TabsList>
-              <TabsContent value="list">{ContractList()}</TabsContent>
-              {user?.role === 'landlord' && (
-                <TabsContent value="create">{CreateContract()}</TabsContent>
+              <TabsContent value="list">
+                <ContractList />
+              </TabsContent>
+              {user?.role === "landlord" && (
+                <TabsContent value="create">
+                  <CreateContract />
+                </TabsContent>
               )}
+              <PasswordConfirmDialog
+                open={deleteDialogOpen}
+                onOpenChange={setDeleteDialogOpen}
+                onConfirm={handleDeleteConfirm}
+              />
+              {isViewDialogOpen && viewingContract && (
+                <ContractDocumentView
+                  contract={viewingContract}
+                  open={isViewDialogOpen}
+                  onOpenChange={setIsViewDialogOpen}
+                />
+              )}
+              {/* EditContractDialog removed */}
             </Tabs>
           </motion.div>
         </div>
       </motion.div>
-
-      <PasswordConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Contract"
-        description="This action cannot be undone. Please enter your password to confirm deletion of this contract."
-        confirmButtonText="Delete Contract"
-      />
-
-      {viewingContract && (
-        <ContractDocumentView
-          contract={viewingContract}
-          open={isViewDialogOpen}
-          onOpenChange={setIsViewDialogOpen}
-        />
-      )}
     </>
   );
 }

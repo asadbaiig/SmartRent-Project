@@ -50,12 +50,11 @@ function AnimatedCounter({
     // If trigger is provided, it overrides other start conditions for re-playing
     // When trigger becomes true, we restart the animation
     if (trigger) {
-      // Reset and animate
       if (controlsRef.current) controlsRef.current.stop();
 
       controlsRef.current = animate(0, value, {
         duration,
-        ease: [0.25, 0.1, 0.25, 1],
+        ease: [0.22, 0.61, 0.36, 1],
         onUpdate: (latest) => {
           setDisplayValue(parseFloat(latest.toFixed(decimals)));
         },
@@ -81,7 +80,7 @@ function AnimatedCounter({
         const timeout = setTimeout(() => {
           controlsRef.current = animate(0, value, {
             duration,
-            ease: [0.25, 0.1, 0.25, 1],
+            ease: [0.22, 0.61, 0.36, 1],
             onUpdate: (latest) => {
               setDisplayValue(parseFloat(latest.toFixed(decimals)));
             },
@@ -105,7 +104,7 @@ function AnimatedCounter({
           hasStartedRef.current = true;
           controlsRef.current = animate(0, value, {
             duration,
-            ease: [0.25, 0.1, 0.25, 1],
+            ease: [0.22, 0.61, 0.36, 1],
             onUpdate: (latest) => {
               setDisplayValue(parseFloat(latest.toFixed(decimals)));
             },
@@ -138,25 +137,31 @@ export default function Home() {
   const { user } = useAuth();
   const statsSectionRef = useRef<HTMLDivElement>(null);
   const [statsVisible, setStatsVisible] = useState(false);
-  const [statsHovered, setStatsHovered] = useState(false);
+  const [heroCountStart, setHeroCountStart] = useState(false);
 
-  // Fetch featured properties
+  // Start hero stats count animation after card is visible (slightly earlier so 0 isn't held long)
+  useEffect(() => {
+    const t = setTimeout(() => setHeroCountStart(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Fetch top properties for "Find Your New Home" section
   const { data: properties = [] } = useQuery({
     queryKey: ['/api/properties'],
     queryFn: async () => {
       try {
         const response = await fetch('/api/properties?limit=6');
-        if (!response.ok) {
-          // On error, fall back to empty array to avoid crashing UI
-          return [];
-        }
+        if (!response.ok) return [];
         return await response.json();
       } catch {
-        // Network or unexpected error - fall back gracefully
         return [];
       }
     },
+    staleTime: 60_000,
   });
+
+  // Display top properties from API, or demo data when loading/empty
+  const featuredProperties = (properties.length > 0 ? properties : DEMO_PROPERTIES).slice(0, 6);
 
   // Monitor stats section visibility
   useEffect(() => {
@@ -249,27 +254,25 @@ export default function Home() {
                 className="rounded-2xl shadow-2xl w-full h-auto"
               />
 
-              {/* Floating Stats Card */}
+              {/* Floating Stats Card - animates on load after card appears */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.8, duration: 0.6 }}
-                onHoverStart={() => setStatsHovered(true)}
-                onHoverEnd={() => setStatsHovered(false)}
               >
                 <Card className="absolute -bottom-6 -left-6 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 cursor-default">
                   <CardContent className="p-6">
                     <div className="flex items-center space-x-4">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
-                          <AnimatedCounter value={320} suffix="+" trigger={statsHovered} duration={0.8} />
+                          <AnimatedCounter value={400} suffix="+" trigger={heroCountStart} duration={1.1} />
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">Properties</div>
                       </div>
                       <div className="w-px h-12 bg-gray-200 dark:bg-gray-600"></div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
-                          <AnimatedCounter value={98} suffix="%" trigger={statsHovered} duration={0.8} />
+                          <AnimatedCounter value={98} suffix="%" trigger={heroCountStart} duration={1.1} />
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">Success Rate</div>
                       </div>
@@ -282,42 +285,43 @@ export default function Home() {
         </div>
       </motion.section>
 
-      {/* Featured Properties - Clickable Container */}
+      {/* Featured Properties - stable list to avoid flicker when auth/API loads */}
       <motion.section
-        className="py-12 bg-[#FFF5FF]/50 dark:bg-[#1a0f2e] cursor-pointer hover:bg-[#A187B0]/20 dark:hover:bg-[#2a1a3f] transition-colors duration-200"
+        key="featured-properties"
+        className="py-12 pb-16 bg-[#FFF5FF]/50 dark:bg-[#1a0f2e] cursor-pointer hover:bg-[#A187B0]/20 dark:hover:bg-[#2a1a3f] transition-colors duration-200"
         onClick={(e) => {
-          // Only navigate if clicking on the section background, not on property cards
           if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.property-card-wrapper') === null) {
             window.location.href = '/properties';
           }
         }}
+        initial="hidden"
+        animate="visible"
         variants={fadeInUp}
-        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 0.5 }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Section Header */}
-          <motion.div className="flex justify-between items-center mb-8" variants={fadeIn}>
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Find Your New Home!</h2>
-            </div>
-          </motion.div>
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Find Your New Home!</h2>
+          </div>
 
-          {/* Property Grid */}
+          {/* Property Grid - no viewport re-trigger so auth load doesn't cause flicker */}
           <motion.div
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            initial="hidden"
+            animate="visible"
             variants={{
               hidden: {},
-              visible: { transition: { staggerChildren: 0.12 } },
+              visible: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
             }}
           >
-            {(properties.length > 0 ? properties : DEMO_PROPERTIES).slice(0, 6).map((property: any) => (
+            {featuredProperties.map((property: any) => (
               <motion.div
                 key={property.id}
                 className="property-card-wrapper"
                 onClick={(e) => e.stopPropagation()}
                 variants={fadeInUp}
               >
-                <PropertyCard property={property} />
+                <PropertyCard property={property} noEntranceAnimation />
               </motion.div>
             ))}
           </motion.div>
@@ -345,13 +349,13 @@ export default function Home() {
             }}
           >
             {[{
-              title: 'Family Apartments',
+              title: 'Houses',
               image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
             }, {
-              title: 'Student Housing',
+              title: 'Apartments',
               image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
             }, {
-              title: 'Commercial Spaces',
+              title: 'Flats',
               image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
             }].map((c) => (
               <motion.div key={c.title} variants={fadeInUp}>
@@ -401,11 +405,11 @@ export default function Home() {
             }}
           >
             {[
-              { icon: Users, label: "Active Users", value: "1,250", suffix: "+" },
-              { icon: FileText, label: "Smart Contracts", value: "450", suffix: "+" },
-              { icon: CheckCircle, label: "Successful Rentals", value: "850", suffix: "+" },
-              { icon: TrendingUp, label: "Success Rate", value: "98", suffix: "%" },
-            ].map(({ icon: Icon, label, value, suffix }) => (
+              { icon: Users, label: "Active Users", value: 1250, suffix: "+" },
+              { icon: FileText, label: "Smart Contracts", value: 450, suffix: "+" },
+              { icon: CheckCircle, label: "Successful Rentals", value: 850, suffix: "+" },
+              { icon: TrendingUp, label: "Success Rate", value: 98, suffix: "%" },
+            ].map(({ icon: Icon, label, value, suffix }, index) => (
               <motion.div
                 key={label}
                 className="text-center"
@@ -415,7 +419,12 @@ export default function Home() {
                   <Icon className="text-white h-8 w-8" />
                 </div>
                 <div className="text-3xl font-bold text-foreground dark:text-white mb-2 tabular-nums">
-                  {value}{suffix}
+                  <AnimatedCounter
+                    value={value}
+                    suffix={suffix}
+                    duration={1.4}
+                    startDelay={index * 0.15}
+                  />
                 </div>
                 <div className="text-muted-foreground dark:text-gray-400">{label}</div>
               </motion.div>

@@ -3,6 +3,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Leaflet district tooltip */
+.district-tooltip {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 6px !important;
+  padding: 6px 10px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  font-family: 'Inter', sans-serif !important;
+}
+.district-tooltip::before { border: none !important; }
+.leaflet-popup-content-wrapper {
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  font-family: 'Inter', sans-serif !important;
+}
+.leaflet-popup-tip { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important; }
+
+/* Keep Leaflet map below sticky header */
+.leaflet-container { z-index: 0 !important; }
+
+/* Property markers */
+path.property-marker {
+  cursor: pointer !important;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #4d4352;

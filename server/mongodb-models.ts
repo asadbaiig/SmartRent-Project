@@ -5,6 +5,7 @@ let PropertyModel: any;
 let DocumentModel: any;
 let DisputeModel: any;
 let ContractModel: any;
+let NotificationModel: any;
 let modelsInitialized = false;
 
 export async function getPropertyModel() {
@@ -33,6 +34,13 @@ export async function getContractModel() {
     await initializeModels();
   }
   return ContractModel;
+}
+
+export async function getNotificationModel() {
+  if (!modelsInitialized) {
+    await initializeModels();
+  }
+  return NotificationModel;
 }
 
 async function initializeModels() {
@@ -157,7 +165,7 @@ async function initializeModels() {
     // Create indexes
     DisputeSchema.index({ raisedBy: 1, createdAt: -1 });
     DisputeSchema.index({ againstUser: 1, createdAt: -1 });
-    DisputeSchema.index({ contractId: 1 });
+
     DisputeSchema.index({ status: 1, createdAt: -1 });
     DisputeSchema.index({ assignedAdmin: 1, status: 1 });
 
@@ -194,6 +202,28 @@ async function initializeModels() {
     ContractSchema.index({ status: 1, createdAt: -1 });
 
     ContractModel = mongoose.models.Contract || mongoose.model('Contract', ContractSchema);
+
+    // Notification Schema
+    const NotificationSchema = new Schema({
+      userId: { type: String, required: true, index: true },
+      type: {
+        type: String,
+        required: true,
+        enum: ['contract_modified', 'contract_created', 'contract_terminated', 'contract_status_changed', 'general'],
+      },
+      title: { type: String, required: true },
+      message: { type: String, required: true },
+      contractId: { type: String, index: true },
+      blockchainHash: { type: String },
+      isRead: { type: Boolean, default: false, index: true },
+      createdAt: { type: Date, default: Date.now },
+    }, {
+      timestamps: false
+    });
+
+    NotificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
+
+    NotificationModel = mongoose.models.Notification || mongoose.model('Notification', NotificationSchema);
 
     modelsInitialized = true;
   } catch (error) {
@@ -238,4 +268,16 @@ export interface DisputeDocument extends Omit<Dispute, 'id'> {
 
 export interface ContractDocument extends Omit<Contract, 'id'> {
   _id: any;
+}
+
+export interface NotificationDocument {
+  _id: any;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  contractId?: string;
+  blockchainHash?: string;
+  isRead: boolean;
+  createdAt: Date;
 }

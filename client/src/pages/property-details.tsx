@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ChatDialog } from "@/components/chat-dialog";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   MapPin, 
   Bed, 
@@ -39,8 +39,13 @@ export default function PropertyDetails() {
   const { toast } = useToast();
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
+  const [mainImageError, setMainImageError] = useState(false);
 
-  // Fetch property details
+  useEffect(() => {
+    setMainImageError(false);
+  }, [id]);
+
+  // Fetch property details; use session cache as initial data to avoid loading flicker when navigating from list
   const { data: property, isLoading } = useQuery({
     queryKey: ['/api/properties', id],
     queryFn: async () => {
@@ -50,16 +55,22 @@ export default function PropertyDetails() {
           return response.json();
         }
       } catch {}
-      // Fallback to session cache saved from the list card
       try {
         const cached = sessionStorage.getItem(`property:${id}`);
-        if (cached) {
-          return JSON.parse(cached);
-        }
+        if (cached) return JSON.parse(cached);
       } catch {}
       throw new Error('Property not found');
     },
     enabled: !!id,
+    initialData: () => {
+      if (!id) return undefined;
+      try {
+        const cached = sessionStorage.getItem(`property:${id}`);
+        return cached ? JSON.parse(cached) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
   });
 
   const handleContactLandlord = () => {
@@ -140,7 +151,8 @@ export default function PropertyDetails() {
     "https://images.unsplash.com/photo-1502005229762-cf1b2da2db52?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800"
   ];
 
-  const propertyImages = property.images && property.images.length > 0 ? property.images : defaultImages;
+  const propertyImages = property.images?.length ? property.images : defaultImages;
+  const mainImageSrc = mainImageError ? defaultImages[0] : propertyImages[0];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
@@ -162,9 +174,10 @@ export default function PropertyDetails() {
             style={{ aspectRatio: "16 / 9" }}
           >
             <img
-              src={propertyImages[0]}
+              src={mainImageSrc}
               alt={property.title}
-              className="w-full h-full object-cover"
+              onError={() => setMainImageError(true)}
+              className="w-full h-full object-cover bg-gray-200 dark:bg-gray-700"
               loading="lazy"
               style={{ imageRendering: "auto" }}
             />

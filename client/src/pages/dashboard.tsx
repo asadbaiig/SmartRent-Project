@@ -6,240 +6,228 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
-import { 
-  Home, 
-  FileText, 
-  TrendingUp, 
-  Clock, 
-  CheckCircle, 
-  CreditCard, 
-  Calendar, 
-  Heart, 
-  Plus, 
-  Bot, 
-  Users, 
+import {
+  Home,
+  FileText,
+  TrendingUp,
+  Clock,
+  CheckCircle,
+  CreditCard,
+  Calendar,
+  Heart,
+  Plus,
+  Users,
   Gavel,
   BarChart,
-  IdCard
+  IdCard,
+  ChevronRight,
 } from "lucide-react";
 import { AnalyticsChart } from "@/components/analytics-chart";
+import { DashboardWeatherSheet } from "@/components/dashboard-weather-sheet";
 import { WeatherWidget } from "@/components/weather-widget";
+import { MarketInsights } from "@/components/market-insights";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(() => {
-    if (user?.role === 'landlord') return 'landlord';
-    if (user?.role === 'tenant') return 'tenant';
-    if (user?.role === 'admin') return 'admin';
-    return 'landlord';
+    if (user?.role === "admin") return "admin";
+    if (user?.role === "landlord") return "landlord";
+    if (user?.role === "tenant") return "tenant";
+    return "landlord";
   });
 
-  // Fetch dashboard stats
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['/api/dashboard/stats'],
+    queryKey: ["/api/dashboard/stats"],
     queryFn: async () => {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/dashboard/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/dashboard/stats", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error('Failed to fetch stats');
+      if (!response.ok) throw new Error("Failed to fetch stats");
       return response.json();
     },
     enabled: !!user,
   });
 
-  // Fetch first property for weather widget (landlords only)
   const { data: firstProperty } = useQuery({
-    queryKey: ['/api/properties', 'first', user?.id],
+    queryKey: ["/api/properties", "first", user?.id],
     queryFn: async () => {
-      const token = localStorage.getItem('token');
-      // Use same approach as contracts page
-      const response = await fetch('/api/properties?landlordOnly=true', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/properties?landlordOnly=true", {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return null;
       const properties = await response.json();
       return properties[0] || null;
     },
-    enabled: !!user && user.role === 'landlord',
+    enabled: !!user && user.role === "landlord",
   });
 
-  // Fetch active contract property for tenants
   const { data: tenantContracts } = useQuery({
-    queryKey: ['/api/contracts', 'active'],
+    queryKey: ["/api/contracts", "active"],
     queryFn: async () => {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/contracts', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/contracts", {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return [];
       const contracts = await response.json();
-      return contracts.filter((c: any) => c.status === 'active');
+      return contracts.filter((c: any) => c.status === "active");
     },
-    enabled: !!user && user.role === 'tenant',
+    enabled: !!user && user.role === "tenant",
   });
 
   const tenantPropertyId = tenantContracts?.[0]?.propertyId;
 
-  // Early return after all hooks are called
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Access Denied</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">Please login to view your dashboard</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="text-center p-8">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Access denied</h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">Sign in to view your dashboard.</p>
           <Button asChild data-testid="button-login">
-            <Link href="/login">Login</Link>
+            <Link href="/login">Sign in</Link>
           </Button>
         </div>
       </div>
     );
   }
 
+  const roleLabel = user.role === "admin" ? "platform" : user.role === "landlord" ? "properties" : "rentals";
+
+  const StatCard = ({
+    label,
+    value,
+    icon: Icon,
+    accent = "slate",
+  }: {
+    label: string;
+    value: string | number;
+    icon: React.ElementType;
+    accent?: "slate" | "emerald" | "amber" | "red";
+  }) => {
+    const styles = {
+      slate: "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300",
+      emerald: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200",
+      amber: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200",
+      red: "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200",
+    };
+    const iconBg = {
+      slate: "bg-slate-200/80 dark:bg-slate-700",
+      emerald: "bg-emerald-200/80 dark:bg-emerald-800",
+      amber: "bg-amber-200/80 dark:bg-amber-800",
+      red: "bg-red-200/80 dark:bg-red-800",
+    };
+    return (
+      <Card className={`border ${styles[accent]}`}>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium opacity-90 truncate">{label}</p>
+              <p className="text-2xl font-semibold tracking-tight mt-1 truncate">{value}</p>
+            </div>
+            <div className={`shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${iconBg[accent]}`}>
+              <Icon className="h-5 w-5 text-current opacity-90" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   const renderLandlordDashboard = () => (
-    <div className="space-y-8" data-dashboard-version="2025-v2-no-timeline">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-primary-600 dark:text-primary-300 text-sm font-medium">Total Properties</p>
-                <p className="text-2xl font-bold text-primary-900 dark:text-primary-100">
-                  {isLoading ? '...' : stats?.totalProperties || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-primary-500 rounded-lg flex items-center justify-center">
-                <Home className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900 dark:to-success-800 border-success-200 dark:border-success-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-success-600 dark:text-success-300 text-sm font-medium">Active Contracts</p>
-                <p className="text-2xl font-bold text-success-900 dark:text-success-100">
-                  {isLoading ? '...' : stats?.activeContracts || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-success-500 rounded-lg flex items-center justify-center">
-                <FileText className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-warning-50 to-warning-100 dark:from-primary-900 dark:to-primary-800 border-warning-200 dark:border-primary-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-warning-600 dark:text-primary-200 text-sm font-medium">Monthly Revenue</p>
-                <p className="text-2xl font-bold text-warning-900 dark:text-primary-100">
-                  {isLoading ? '...' : `₨${Number(stats?.monthlyRevenue || 0).toLocaleString()}`}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-warning-500 dark:bg-primary-500 rounded-lg flex items-center justify-center">
-                <TrendingUp className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-gray-200 dark:border-gray-600">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Pending Verifications</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {isLoading ? '...' : stats?.pendingVerifications || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-gray-500 rounded-lg flex items-center justify-center">
-                <Clock className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-8" data-dashboard-version="2025-v2">
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Total properties"
+          value={isLoading ? "—" : stats?.totalProperties ?? 0}
+          icon={Home}
+          accent="slate"
+        />
+        <StatCard
+          label="Active contracts"
+          value={isLoading ? "—" : stats?.activeContracts ?? 0}
+          icon={FileText}
+          accent="emerald"
+        />
+        <StatCard
+          label="Monthly revenue"
+          value={isLoading ? "—" : `₨${Number(stats?.monthlyRevenue ?? 0).toLocaleString()}`}
+          icon={TrendingUp}
+          accent="amber"
+        />
+        <StatCard
+          label="Pending verifications"
+          value={isLoading ? "—" : stats?.pendingVerifications ?? 0}
+          icon={Clock}
+          accent="slate"
+        />
       </div>
 
-      {/* Analytics Charts */}
+      {/* Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Analytics Chart - Shows monthly revenue trends over the past 12 months */}
         <AnalyticsChart type="revenue" chartStyle="area" />
-        {/* Properties Analytics Chart - Displays the number of properties listed each month */}
         <AnalyticsChart type="properties" chartStyle="bar" />
       </div>
 
-      {/* Quick Actions - UPDATED 2025-01-XX - NO CONTRACT TIMELINE */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main content + sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0 w-10 h-10 bg-success-100 dark:bg-success-900 rounded-full flex items-center justify-center">
-                    <CheckCircle className="text-success-600 dark:text-success-400 h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 dark:text-white">New contract signed for property</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">2 hours ago</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0 w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
-                    <CreditCard className="text-primary-600 dark:text-primary-400 h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 dark:text-white">Rent payment received</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">1 day ago</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MarketInsights className="h-full border-2 border-slate-300 dark:border-slate-600 shadow-sm ring-1 ring-slate-200/50 dark:ring-slate-600/50 rounded-lg" />
         </div>
 
-        <div>
-          {/* Weather Widget */}
-          <WeatherWidget propertyId={firstProperty?.id} city={firstProperty?.city} />
-
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
+        <div className="flex">
+          <Card className="w-full overflow-hidden flex flex-col">
+            <CardHeader className="shrink-0 px-5 pt-5 pb-4 border-b border-slate-200/80 dark:border-slate-700/80">
+              <CardTitle className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">Quick actions</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <Button className="w-full justify-start" asChild data-testid="button-add-property">
+            <CardContent className="flex-1 flex flex-col px-5 py-4">
+              <div className="space-y-2.5">
+                <Button
+                  className="w-full h-11 justify-between rounded-md px-4 font-medium text-sm"
+                  asChild
+                  data-testid="button-add-property"
+                >
                   <Link href="/list-property">
-                    <Plus className="mr-3 h-4 w-4" />
-                    Add New Property
+                    <span className="flex items-center gap-3">
+                      <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                      <span>Add property</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
                   </Link>
                 </Button>
-                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-create-contract">
+                <Button
+                  variant="outline"
+                  className="w-full h-11 justify-between rounded-md px-4 font-medium text-sm border-slate-200 dark:border-slate-700"
+                  asChild
+                  data-testid="button-create-contract"
+                >
                   <Link href="/contracts/new">
-                    <FileText className="mr-3 h-4 w-4" />
-                    Create Contract
+                    <span className="flex items-center gap-3">
+                      <FileText className="h-4 w-4 shrink-0" aria-hidden />
+                      <span>Create contract</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
                   </Link>
                 </Button>
-                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-disputes">
+                <Button
+                  variant="outline"
+                  className="w-full h-11 justify-between rounded-md px-4 font-medium text-sm border-slate-200 dark:border-slate-700"
+                  asChild
+                  data-testid="button-disputes"
+                >
                   <Link href="/disputes">
-                    <Gavel className="mr-3 h-4 w-4" />
-                    Disputes
+                    <span className="flex items-center gap-3">
+                      <Gavel className="h-4 w-4 shrink-0" aria-hidden />
+                      <span>Disputes</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
                   </Link>
                 </Button>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-200/80 dark:border-slate-700/80 flex-1">
+                <WeatherWidget city={firstProperty?.city} propertyId={firstProperty?.id} />
               </div>
             </CardContent>
           </Card>
@@ -250,99 +238,55 @@ export default function Dashboard() {
 
   const renderTenantDashboard = () => (
     <div className="space-y-8">
-      {/* Stats Cards for Tenant */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-primary-600 dark:text-primary-300 text-sm font-medium">Current Rent</p>
-                <p className="text-2xl font-bold text-primary-900 dark:text-primary-100">
-                  {isLoading ? '...' : `₨${Number(stats?.currentRent || 0).toLocaleString()}`}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-primary-500 rounded-lg flex items-center justify-center">
-                <Home className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900 dark:to-success-800 border-success-200 dark:border-success-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-success-600 dark:text-success-300 text-sm font-medium">Contract Status</p>
-                <p className="text-lg font-bold text-success-900 dark:text-success-100">
-                  {isLoading ? '...' : stats?.contractStatus === 'active' ? 'Active' : 'None'}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-success-500 rounded-lg flex items-center justify-center">
-                <CheckCircle className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-warning-50 to-warning-100 dark:from-warning-900 dark:to-warning-800 border-warning-200 dark:border-warning-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-warning-600 dark:text-warning-300 text-sm font-medium">Next Payment</p>
-                <p className="text-lg font-bold text-warning-900 dark:text-warning-100">
-                  {isLoading ? '...' : stats?.nextPaymentDate ? new Date(stats.nextPaymentDate).toLocaleDateString() : 'N/A'}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-warning-500 rounded-lg flex items-center justify-center">
-                <Calendar className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-gray-200 dark:border-gray-600">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Saved Properties</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {isLoading ? '...' : stats?.savedProperties || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-gray-500 rounded-lg flex items-center justify-center">
-                <Heart className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Current rent"
+          value={isLoading ? "—" : `₨${Number(stats?.currentRent ?? 0).toLocaleString()}`}
+          icon={Home}
+          accent="slate"
+        />
+        <StatCard
+          label="Contract status"
+          value={isLoading ? "—" : stats?.contractStatus === "active" ? "Active" : "None"}
+          icon={CheckCircle}
+          accent="emerald"
+        />
+        <StatCard
+          label="Next payment"
+          value={isLoading ? "—" : stats?.nextPaymentDate ? new Date(stats.nextPaymentDate).toLocaleDateString() : "N/A"}
+          icon={Calendar}
+          accent="amber"
+        />
+        <StatCard
+          label="Saved properties"
+          value={isLoading ? "—" : stats?.savedProperties ?? 0}
+          icon={Heart}
+          accent="slate"
+        />
       </div>
 
-      {/* Analytics Charts for Tenant */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Payment History Chart - Shows monthly rent payment history over the past 12 months */}
         <AnalyticsChart type="payments" chartStyle="area" />
-        {/* Saved Properties Chart - Displays the number of properties saved to favorites each month */}
         <AnalyticsChart type="savedProperties" chartStyle="bar" />
       </div>
 
-      {/* Quick Actions for Tenant */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Current Property</CardTitle>
+              <CardTitle className="text-base font-semibold">Current property</CardTitle>
             </CardHeader>
             <CardContent>
-              {stats?.contractStatus === 'active' ? (
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">You have an active rental</p>
-                  <p className="font-semibold text-gray-900 dark:text-white">Monthly Rent: ₨{Number(stats?.currentRent || 0).toLocaleString()}</p>
+              {stats?.contractStatus === "active" ? (
+                <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Active rental</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">₨{Number(stats?.currentRent ?? 0).toLocaleString()} / month</p>
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-500 dark:text-gray-400 mb-4">No active rental</p>
+                  <p className="text-slate-500 dark:text-slate-400 mb-4">No active rental</p>
                   <Button asChild data-testid="button-search-properties">
-                    <Link href="/properties">Search Properties</Link>
+                    <Link href="/properties">Find properties</Link>
                   </Button>
                 </div>
               )}
@@ -351,40 +295,69 @@ export default function Dashboard() {
         </div>
 
         <div>
-          {/* Weather Widget */}
-          <WeatherWidget propertyId={tenantPropertyId} />
-
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <Button className="w-full justify-start" asChild data-testid="button-pay-rent">
-                  <Link href="/payments">
-                    <CreditCard className="mr-3 h-4 w-4" />
-                    Pay Rent
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-search-properties">
-                  <Link href="/properties">
-                    <Home className="mr-3 h-4 w-4" />
-                    Search Properties
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-upload-documents">
-                  <Link href="/verification">
-                    <IdCard className="mr-3 h-4 w-4" />
-                    Upload Documents
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild data-testid="button-disputes-tenant">
-                  <Link href="/disputes">
-                    <Gavel className="mr-3 h-4 w-4" />
-                    Disputes
-                  </Link>
-                </Button>
+          <Card className="w-full overflow-hidden">
+            <CardHeader className="shrink-0 px-5 pt-5 pb-4 border-b border-slate-200/80 dark:border-slate-700/80">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">Quick actions</CardTitle>
+                <DashboardWeatherSheet propertyId={tenantPropertyId} triggerLabel="Weather" />
               </div>
+            </CardHeader>
+            <CardContent className="px-5 py-4 space-y-2.5">
+              <Button
+                className="w-full h-11 justify-between rounded-md px-4 font-medium text-sm"
+                asChild
+                data-testid="button-pay-rent"
+              >
+                <Link href="/payments">
+                  <span className="flex items-center gap-3">
+                    <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>Pay rent</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-11 justify-between rounded-md px-4 font-medium text-sm border-slate-200 dark:border-slate-700"
+                asChild
+                data-testid="button-search-properties"
+              >
+                <Link href="/properties">
+                  <span className="flex items-center gap-3">
+                    <Home className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>Search properties</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-11 justify-between rounded-md px-4 font-medium text-sm border-slate-200 dark:border-slate-700"
+                asChild
+                data-testid="button-upload-documents"
+              >
+                <Link href="/verification">
+                  <span className="flex items-center gap-3">
+                    <IdCard className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>Upload documents</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-11 justify-between rounded-md px-4 font-medium text-sm border-slate-200 dark:border-slate-700"
+                asChild
+                data-testid="button-disputes-tenant"
+              >
+                <Link href="/disputes">
+                  <span className="flex items-center gap-3">
+                    <Gavel className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>Disputes</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -394,122 +367,61 @@ export default function Dashboard() {
 
   const renderAdminDashboard = () => (
     <div className="space-y-8">
-      {/* Admin Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 border-primary-200 dark:border-primary-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-primary-600 dark:text-primary-300 text-sm font-medium">Total Users</p>
-                <p className="text-2xl font-bold text-primary-900 dark:text-primary-100">
-                  {isLoading ? '...' : stats?.totalUsers || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-primary-500 rounded-lg flex items-center justify-center">
-                <Users className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-warning-50 to-warning-100 dark:from-warning-900 dark:to-warning-800 border-warning-200 dark:border-warning-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-warning-600 dark:text-warning-300 text-sm font-medium">Pending Verifications</p>
-                <p className="text-2xl font-bold text-warning-900 dark:text-warning-100">
-                  {isLoading ? '...' : stats?.pendingVerifications || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-warning-500 rounded-lg flex items-center justify-center">
-                <Clock className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900 dark:to-success-800 border-success-200 dark:border-success-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-success-600 dark:text-success-300 text-sm font-medium">Active Contracts</p>
-                <p className="text-2xl font-bold text-success-900 dark:text-success-100">
-                  {isLoading ? '...' : stats?.activeContracts || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-success-500 rounded-lg flex items-center justify-center">
-                <FileText className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900 dark:to-red-800 border-red-200 dark:border-red-700">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-red-600 dark:text-red-300 text-sm font-medium">Open Disputes</p>
-                <p className="text-2xl font-bold text-red-900 dark:text-red-100">
-                  {isLoading ? '...' : stats?.openDisputes || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
-                <Gavel className="text-white h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total users" value={isLoading ? "—" : stats?.totalUsers ?? 0} icon={Users} accent="slate" />
+        <StatCard label="Pending verifications" value={isLoading ? "—" : stats?.pendingVerifications ?? 0} icon={Clock} accent="amber" />
+        <StatCard label="Active contracts" value={isLoading ? "—" : stats?.activeContracts ?? 0} icon={FileText} accent="emerald" />
+        <StatCard label="Open disputes" value={isLoading ? "—" : stats?.openDisputes ?? 0} icon={Gavel} accent="red" />
       </div>
 
-      {/* Analytics Charts for Admin */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Analytics Chart - Shows monthly revenue trends over the past 12 months */}
         <AnalyticsChart type="revenue" chartStyle="area" />
-        {/* Properties Analytics Chart - Displays the number of properties listed each month */}
         <AnalyticsChart type="properties" chartStyle="bar" />
       </div>
 
-      {/* Admin Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Verification Queue</CardTitle>
-            <Badge variant="secondary" className="w-fit">{stats?.pendingVerifications || 0} Pending</Badge>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold">Verification queue</CardTitle>
+              <Badge variant="secondary">{stats?.pendingVerifications ?? 0} pending</Badge>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {stats?.pendingVerifications || 0} users waiting for verification
-              </p>
-              <Button className="w-full" asChild data-testid="button-review-verifications">
-                <Link href="/admin/portal">
-                  <IdCard className="mr-2 h-4 w-4" />
-                  Admin Portal
-                </Link>
-              </Button>
-            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              {stats?.pendingVerifications ?? 0} users awaiting verification
+            </p>
+            <Button className="w-full" asChild data-testid="button-review-verifications">
+              <Link href="/admin/portal">
+                <IdCard className="mr-2 h-4 w-4" />
+                Open admin portal
+              </Link>
+            </Button>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader>
-            <CardTitle>Admin Actions</CardTitle>
+            <CardTitle className="text-base font-semibold">Admin actions</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <Button className="w-full justify-start" variant="outline" asChild data-testid="button-manage-disputes">
-                <Link href="/disputes">
-                  <Gavel className="mr-3 h-4 w-4" />
-                  Manage Disputes
-                </Link>
-              </Button>
-              <Button className="w-full justify-start" variant="outline" asChild data-testid="button-system-analytics">
-                <Link href="/admin/analytics">
-                  <BarChart className="mr-3 h-4 w-4" />
-                  System Analytics
-                </Link>
-              </Button>
-            </div>
+          <CardContent className="space-y-2">
+            <Button variant="outline" className="w-full justify-between" asChild data-testid="button-manage-disputes">
+              <Link href="/disputes">
+                <span className="flex items-center gap-2">
+                  <Gavel className="h-4 w-4" />
+                  Manage disputes
+                </span>
+                <ChevronRight className="h-4 w-4 opacity-50" />
+              </Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-between" asChild data-testid="button-system-analytics">
+              <Link href="/admin/analytics">
+                <span className="flex items-center gap-2">
+                  <BarChart className="h-4 w-4" />
+                  System analytics
+                </span>
+                <ChevronRight className="h-4 w-4 opacity-50" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -517,30 +429,30 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">
             Welcome back, {user.fullName}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Here's what's happening with your {user.role === 'admin' ? 'platform' : user.role === 'landlord' ? 'properties' : 'rentals'}
+          <p className="text-slate-600 dark:text-slate-400 mt-1 text-sm">
+            Overview of your {roleLabel}
           </p>
         </div>
 
-        {/* Show role-based tabs for admin */}
-        {user.role === 'admin' ? (
+        {user.role === "admin" ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="landlord" data-testid="tab-landlord">Landlord View</TabsTrigger>
-              <TabsTrigger value="tenant" data-testid="tab-tenant">Tenant View</TabsTrigger>
-              <TabsTrigger value="admin" data-testid="tab-admin">Admin View</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 max-w-md bg-slate-200/80 dark:bg-slate-800 p-1 rounded-lg">
+              <TabsTrigger value="landlord" data-testid="tab-landlord">Landlord</TabsTrigger>
+              <TabsTrigger value="tenant" data-testid="tab-tenant">Tenant</TabsTrigger>
+              <TabsTrigger value="admin" data-testid="tab-admin">Admin</TabsTrigger>
             </TabsList>
-            <TabsContent value="landlord">{renderLandlordDashboard()}</TabsContent>
-            <TabsContent value="tenant">{renderTenantDashboard()}</TabsContent>
-            <TabsContent value="admin">{renderAdminDashboard()}</TabsContent>
+            <TabsContent value="landlord" className="mt-6">{renderLandlordDashboard()}</TabsContent>
+            <TabsContent value="tenant" className="mt-6">{renderTenantDashboard()}</TabsContent>
+            <TabsContent value="admin" className="mt-6">{renderAdminDashboard()}</TabsContent>
           </Tabs>
-        ) : user.role === 'landlord' ? (
+        ) : user.role === "landlord" ? (
           renderLandlordDashboard()
         ) : (
           renderTenantDashboard()
@@ -549,4 +461,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

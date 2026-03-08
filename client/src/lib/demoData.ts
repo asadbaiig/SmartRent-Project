@@ -35,7 +35,7 @@ export const DEMO_PROPERTIES = [
     sqft: 2400,
     monthlyRent: "180000",
     images: [
-      "https://images.unsplash.com/photo-1560185008-b033106af5a6?q=80&w=1600&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=1600&auto=format&fit=crop",
     ],
     isAvailable: true,
     coordinates: { lat: 24.8138, lng: 67.0653 },

@@ -1,16 +1,18 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Bed, Bath, Expand, Star, Heart, User, Share2 } from "lucide-react";
-import { useState } from "react";
+import { MapPin, Bed, Bath, Expand, Star, Share2 } from "lucide-react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { ShareDialog } from "@/components/share-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+const DEFAULT_PROPERTY_IMAGE =
+  "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600";
 
 interface PropertyCardProps {
   property: {
@@ -35,31 +37,26 @@ interface PropertyCardProps {
     };
     aiSuggestedPrice?: string;
   };
+  /** When true, skip entrance animation (e.g. when parent already animates) to avoid flicker */
+  noEntranceAnimation?: boolean;
 }
 
-export function PropertyCard({ property }: PropertyCardProps) {
-  const defaultImage = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600";
+export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
 
-  // Get current image, with fallback chain
-  const getCurrentImage = () => {
-    if (property.images && property.images.length > 0) {
-      if (currentImageIndex < property.images.length) {
-        return property.images[currentImageIndex];
-      }
+  const propertyImage = useMemo(() => {
+    if (!imageError && property.images?.length && currentImageIndex < property.images.length) {
+      return property.images[currentImageIndex];
     }
-    return defaultImage;
-  };
+    return DEFAULT_PROPERTY_IMAGE;
+  }, [property.images, currentImageIndex, imageError]);
 
-  const propertyImage = getCurrentImage();
-  const [isFavorited, setIsFavorited] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   const handleImageError = () => {
-    // Try next image in array, or fall back to default
     if (property.images && currentImageIndex < property.images.length - 1) {
-      setCurrentImageIndex(currentImageIndex + 1);
+      setCurrentImageIndex((i) => i + 1);
     } else {
       setImageError(true);
     }
@@ -111,21 +108,20 @@ export function PropertyCard({ property }: PropertyCardProps) {
       >
         <motion.div
           className="h-full"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
+          initial={noEntranceAnimation ? false : { opacity: 0, y: 20 }}
+          whileInView={noEntranceAnimation ? undefined : { opacity: 1, y: 0 }}
+          viewport={noEntranceAnimation ? undefined : { once: true, amount: 0.3 }}
           whileHover={{ y: -8 }}
-          transition={{ duration: 0.45, ease: "easeOut" }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
         >
           <Card className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 group cursor-pointer">
-            <div className="relative overflow-hidden">
+            <div className="relative overflow-hidden rounded-t-xl">
               <img
-                key={`${property.id}-${currentImageIndex}`}
-                src={imageError ? defaultImage : propertyImage}
+                src={propertyImage}
                 alt={property.title}
                 onError={handleImageError}
                 onLoad={() => setImageError(false)}
-                className="w-full h-48 object-cover transform transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-48 object-cover transform transition-transform duration-500 group-hover:scale-105 bg-gray-200 dark:bg-gray-700"
                 loading="lazy"
               />
 
@@ -147,19 +143,15 @@ export function PropertyCard({ property }: PropertyCardProps) {
                 <Badge className="bg-primary-500 text-white text-[10px]">Smart Contract</Badge>
               </div>
 
-              {/* AI Badge */}
-              {property.aiSuggestedPrice && (
-                <div className="absolute top-3 right-3">
-                  <Badge className="bg-warning-500 text-white text-[10px]">AI Recommended</Badge>
-                </div>
-              )}
-
-              {/* Share Button */}
-              <div className={`absolute ${property.aiSuggestedPrice ? 'top-12' : 'top-3'} right-3 flex flex-col gap-2`}>
+              {/* AI Badge + Share - inset so badge isn't clipped by card */}
+              <div className="absolute top-3 right-3 flex flex-col items-end gap-2 max-w-[calc(100%-0.75rem)]">
+                {property.aiSuggestedPrice && (
+                  <Badge className="bg-warning-500 text-white text-[10px] shrink-0">AI Recommended</Badge>
+                )}
                 <Button
                   size="icon"
                   variant="secondary"
-                  className="h-8 w-8 rounded-full bg-white/90 hover:bg-white backdrop-blur shadow-md hover:shadow-lg transition-all duration-200"
+                  className="h-8 w-8 rounded-full bg-white/90 hover:bg-white backdrop-blur shadow-md hover:shadow-lg transition-all duration-200 shrink-0"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -169,7 +161,6 @@ export function PropertyCard({ property }: PropertyCardProps) {
                 >
                   <Share2 className="h-4 w-4 text-gray-700" />
                 </Button>
-
                 {user?.role === 'admin' && !property.id.startsWith('ds-') && (
                   <Button
                     size="icon"

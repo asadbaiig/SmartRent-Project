@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SearchFilters } from "@/components/search-filters";
 import { PropertyCard } from "@/components/property-card";
+import { AIPricePredictorModal } from "@/components/ai-price-predictor";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +28,16 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
 };
 
+// Map AI/dataset property types to backend filter vocabulary (apartment, house, commercial, office)
+function normalizePropertyTypeForApi(value: string): string {
+  if (!value || !value.trim()) return "";
+  const v = value.trim().toLowerCase();
+  if (v === "house") return "house";
+  if (v === "flat" || v === "upper portion" || v === "lower portion" || v === "penthouse" || v === "room" || v === "farm house") return "apartment";
+  if (v === "apartment" || v === "commercial" || v === "office") return v;
+  return value.trim();
+}
+
 export default function Properties() {
   const [location, setLocation] = useLocation();
   const [filters, setFilters] = useState({
@@ -35,6 +46,8 @@ export default function Properties() {
     minRent: "",
     maxRent: "",
     bedrooms: "",
+    bathrooms: "",
+    sqft: "",
     aiSuggestions: false,
   });
   const [sortBy, setSortBy] = useState("latest");
@@ -92,7 +105,8 @@ export default function Properties() {
     queryParams.set('city', filters.city.trim());
   }
   if (filters.propertyType && filters.propertyType !== 'all') {
-    queryParams.set('propertyType', filters.propertyType);
+    const normalized = normalizePropertyTypeForApi(filters.propertyType);
+    if (normalized) queryParams.set('propertyType', normalized);
   }
   if (filters.minRent && filters.minRent !== 'any') {
     queryParams.set('minRent', filters.minRent);
@@ -108,6 +122,12 @@ export default function Properties() {
     } else {
       queryParams.set('bedrooms', filters.bedrooms);
     }
+  }
+  if (filters.bathrooms && filters.bathrooms !== 'any') {
+    queryParams.set('bathrooms', filters.bathrooms);
+  }
+  if (filters.sqft && filters.sqft !== 'any') {
+    queryParams.set('sqftMin', filters.sqft);
   }
   queryParams.set('limit', pageSize.toString());
   queryParams.set('offset', (currentPage * pageSize).toString());
@@ -160,9 +180,39 @@ export default function Properties() {
     return results;
   }, [properties, mapProperties, viewMode]);
 
-  const handleSearch = (newFilters: typeof filters) => {
-    setFilters(newFilters);
+  const handleSearch = (newFilters: { city: string; propertyType: string; minRent: string; maxRent: string; bedrooms: string; aiSuggestions: boolean }) => {
+    setFilters((prev) => ({ ...prev, ...newFilters }));
     setCurrentPage(0); // Reset to first page
+  };
+
+  const handleAIFilters = (aiFilters: {
+    city: string;
+    propertyType: string;
+    minRent: string;
+    maxRent: string;
+    bedrooms: string;
+    bathrooms?: string;
+    sqft?: string;
+  }) => {
+    const normalizedType = normalizePropertyTypeForApi(aiFilters.propertyType) || aiFilters.propertyType;
+    setFilters((prev) => ({
+      ...prev,
+      city: aiFilters.city,
+      propertyType: normalizedType,
+      minRent: aiFilters.minRent,
+      maxRent: aiFilters.maxRent,
+      bedrooms: aiFilters.bedrooms,
+      bathrooms: aiFilters.bathrooms || "",
+      sqft: aiFilters.sqft || "",
+    }));
+    setCurrentPage(0);
+    // Scroll to properties section
+    setTimeout(() => {
+      const propertiesSection = document.querySelector('h1[class*="text-2xl"]');
+      if (propertiesSection) {
+        propertiesSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   };
 
   const handleSortChange = (value: string) => {
@@ -242,7 +292,18 @@ export default function Properties() {
     >
       {/* Fixed compact filters */}
       <motion.div className="bg-[#FFF5FF]/50 dark:bg-[#1a0f2e]/50" variants={pageVariants}>
-        <SearchFilters onSearch={handleSearch} variant="compact" />
+        <SearchFilters
+          onSearch={handleSearch}
+          variant="compact"
+          value={{
+            city: filters.city,
+            propertyType: filters.propertyType,
+            minRent: filters.minRent,
+            maxRent: filters.maxRent,
+            bedrooms: filters.bedrooms,
+            aiSuggestions: filters.aiSuggestions,
+          }}
+        />
       </motion.div>
 
       {/* Main Content */}
@@ -264,6 +325,7 @@ export default function Properties() {
                     List Your Property
                   </Link>
                 </Button>
+                <AIPricePredictorModal onApplyFilters={handleAIFilters} />
                 <div className="hidden md:flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <Button variant={viewMode === 'list' ? 'default' : 'ghost'} onClick={() => handleViewModeChange('list')} className={`h-9 rounded-none ${viewMode === 'list' ? '' : 'bg-transparent'}`}>
                     <LayoutGrid className="h-4 w-4 mr-2" /> List
@@ -323,14 +385,19 @@ export default function Properties() {
                 </p>
                 <Button
                   variant="outline"
-                  onClick={() => handleSearch({
-                    city: "",
-                    propertyType: "",
-                    minRent: "",
-                    maxRent: "",
-                    bedrooms: "",
-                    aiSuggestions: false,
-                  })}
+                  onClick={() => {
+                    setFilters({
+                      city: "",
+                      propertyType: "",
+                      minRent: "",
+                      maxRent: "",
+                      bedrooms: "",
+                      bathrooms: "",
+                      sqft: "",
+                      aiSuggestions: false,
+                    });
+                    setCurrentPage(0);
+                  }}
                   data-testid="button-clear-filters"
                 >
                   Clear Filters

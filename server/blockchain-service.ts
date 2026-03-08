@@ -267,6 +267,49 @@ export class BlockchainService {
   }
 
   /**
+   * Record contract modification on blockchain – emits ContractModified event
+   */
+  async modifyContract(
+    contractId: string,
+    fieldChanged: string,
+    monthlyRent?: number,
+    securityDeposit?: number,
+    endDate?: Date,
+    termsHash?: string
+  ): Promise<string | null> {
+    this.ensureInitialized();
+    if (!this.enabled || !this.contract) {
+      console.warn("[Blockchain] Service not enabled. Skipping modify.");
+      return null;
+    }
+
+    try {
+      console.log(`[Blockchain] Recording modification for contract ${contractId} (${fieldChanged})...`);
+
+      const rentWei = monthlyRent ? this.pkrToWei(monthlyRent) : 0;
+      const depositWei = securityDeposit ? this.pkrToWei(securityDeposit) : 0;
+      const endTimestamp = endDate ? Math.floor(endDate.getTime() / 1000) : 0;
+
+      const tx = await this.contract.modifyContract(
+        contractId,
+        fieldChanged,
+        rentWei,
+        depositWei,
+        endTimestamp,
+        termsHash || ""
+      );
+      const receipt = await tx.wait();
+
+      console.log(`[Blockchain] Modification recorded in block: ${receipt.blockNumber}`);
+      return tx.hash;
+    } catch (error: any) {
+      console.error("[Blockchain] Error recording modification:", error);
+      // Don't throw — modification should proceed even if blockchain fails
+      return null;
+    }
+  }
+
+  /**
    * Check if the contract factory is deployed
    */
   async isContractDeployed(): Promise<boolean> {

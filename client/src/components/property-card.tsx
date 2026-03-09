@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Bed, Bath, Expand, Star, Share2 } from "lucide-react";

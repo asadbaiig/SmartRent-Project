@@ -590,7 +590,7 @@ export class FirebaseStorage {
   }
 
   async getDisputes(filters: any = {}): Promise<Dispute[]> {
-    let q = collection(db, 'disputes');
+    let q: any = collection(db, 'disputes');
     const constraints: any[] = [];
 
     if (filters.contractId) {
@@ -605,7 +605,7 @@ export class FirebaseStorage {
 
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    let results = querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -615,6 +615,23 @@ export class FirebaseStorage {
         updatedAt: convertTimestamp(data.updatedAt)
       } as Dispute;
     });
+
+    // Apply in-memory filters for fields not supported by Firestore indexes
+    if (filters.raisedBy) {
+      results = results.filter((d: any) => d.raisedBy === filters.raisedBy);
+    }
+    if (filters.againstUser) {
+      results = results.filter((d: any) => d.againstUser === filters.againstUser);
+    }
+    if (filters.status) {
+      results = results.filter((d: any) => d.status === filters.status);
+    }
+    // If userId provided, show disputes where user is either party
+    if (filters.userId) {
+      results = results.filter((d: any) => d.raisedBy === filters.userId || d.againstUser === filters.userId);
+    }
+
+    return results;
   }
 
   // Utility methods for stats and other operations

@@ -1895,30 +1895,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(dummyStats);
     }
   });
-  // Disputes routes
+  // ==========================================
+  // DISPUTE RESOLUTION ROUTES
+  // ==========================================
+  
+  // Helper: get dispute storage (MongoDB primary, Firebase fallback)
+  const getDisputeStorage = async () => {
+    const isMongoConnected = isMongoDBConnected();
+    if (isMongoConnected) {
+      const { mongoDBDisputeStorage } = await import('./mongodb-disputes-storage');
+      return { type: 'mongodb' as const, storage: mongoDBDisputeStorage };
+    }
+    return { type: 'firebase' as const, storage: firebaseStorage };
+  };
+
+  // Helper: get contract (MongoDB primary, Firebase fallback)
+  const getContractForDispute = async (contractId: string) => {
+    const isMongoConnected = isMongoDBConnected();
+    if (isMongoConnected) {
+      const contract = await mongoDBStorage.getContract(contractId);
+      if (contract) return contract;
+    }
+    return firebaseStorage.getContractById(contractId);
+  };
+
+  // GET /api/disputes - List disputes (role-based filtering)
   app.get("/api/disputes", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const filters: any = {};
+      const { status } = req.query;
+      const userId = req.user!.uid;
+      const userRole = req.user!.role;
 
-      if (req.user!.role !== 'admin') {
-        filters.raisedBy = req.user!.uid;
+      const { type, storage } = await getDisputeStorage();
+
+      if (type === 'mongodb') {
+        const filters: any = {};
+
+        // Role-based filtering: admin sees all, others see only disputes they're involved in
+        if (userRole !== 'admin') {
+          filters.userId = userId; // This triggers $or: [{raisedBy}, {againstUser}] in MongoDB storage
+        }
+
+        if (status && status !== 'all') {
+          filters.status = status as string;
+        }
+
+        const disputes = await storage.getDisputes(filters);
+        return res.json(disputes);
+      } else {
+        // Firebase fallback
+        let disputes = await storage.getDisputes({});
+
+        // Filter by user role
+        if (userRole !== 'admin') {
+          disputes = disputes.filter((d: any) =>
+            d.raisedBy === userId || d.againstUser === userId
+          );
+        }
+
+        // Filter by status
+        if (status && status !== 'all') {
+          disputes = disputes.filter((d: any) => d.status === status);
+        }
+
+        return res.json(disputes);
       }
-
-      const disputes = await firebaseStorage.getDisputes(filters);
-      res.json(disputes);
     } catch (error) {
       console.error("Get disputes error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
 
+  // GET /api/disputes/:id - Get single dispute with messages and evidence
+  app.get("/api/disputes/:id", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.uid;
+      const userRole = req.user!.role;
+
+      const { type, storage } = await getDisputeStorage();
+
+      let dispute: any = null;
+
+      if (type === 'mongodb') {
+        dispute = await storage.getDispute(id);
+      } else {
+        dispute = await (storage as typeof firebaseStorage).getDisputeById(id);
+      }
+
+      if (!dispute) {
+        return res.status(404).json({ message: "Dispute not found" });
+      }
+
+      // Authorization: only admin or involved parties can view
+      if (userRole !== 'admin' && dispute.raisedBy !== userId && dispute.againstUser !== userId) {
+        return res.status(403).json({ message: "You are not authorized to view this dispute" });
+      }
+
+      res.json(dispute);
+    } catch (error) {
+      console.error("Get dispute error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // POST /api/disputes - Create a new dispute
   app.post("/api/disputes", authenticateToken, upload.array('files'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       console.log("[Dispute] Received request body:", req.body);
       console.log("[Dispute] Received files:", req.files);
       console.log("[Dispute] User:", req.user?.uid);
 
-      // Get form fields from req.body (multer puts them there)
       const { title, description, contractId, propertyId, category } = req.body;
 
       console.log("[Dispute] Parsed fields:", { title, description, contractId, propertyId, category });
@@ -1929,7 +2016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get contract to find the againstUser (the other party)
-      const contract = await firebaseStorage.getContractById(contractId);
+      const contract = await getContractForDispute(contractId);
       if (!contract) {
         return res.status(404).json({ message: "Contract not found" });
       }
@@ -1946,15 +2033,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const evidence: any[] = [];
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files) {
-          // Validate file type
           const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
           if (!allowedMimeTypes.includes(file.mimetype)) {
             await fs.unlink(file.path).catch(() => { });
             return res.status(400).json({ message: `File ${file.originalname} is not a valid type. Only JPEG, PNG, WebP images and PDF files are allowed.` });
           }
 
-          // Validate file size (10MB max)
-          const maxSize = 10 * 1024 * 1024; // 10MB
+          const maxSize = 10 * 1024 * 1024;
           if (file.size > maxSize) {
             await fs.unlink(file.path).catch(() => { });
             return res.status(400).json({ message: `File ${file.originalname} is too large. Maximum size is 10MB.` });
@@ -1973,7 +2058,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create dispute data - Firebase is flexible, so we can include extra fields
       const disputeData: any = {
         contractId: String(contractId),
         raisedBy: String(raisedBy),
@@ -1984,7 +2068,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         evidence: evidence.length > 0 ? evidence : [],
       };
 
-      // Add optional fields only if they exist
       if (propertyId) {
         disputeData.propertyId = String(propertyId);
       } else if (contract.propertyId) {
@@ -1997,13 +2080,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("[Dispute] Creating dispute with data:", JSON.stringify(disputeData, null, 2));
 
-      // Skip schema validation and create directly - Firebase is flexible
-      // The schema validation was causing issues, so we'll validate manually
       if (!disputeData.contractId || !disputeData.raisedBy || !disputeData.againstUser || !disputeData.title || !disputeData.description) {
         return res.status(400).json({ message: "Missing required fields: contractId, raisedBy, againstUser, title, and description are required" });
       }
 
-      const dispute = await firebaseStorage.createDispute(disputeData as any);
+      const { type, storage } = await getDisputeStorage();
+
+      let dispute: any;
+      if (type === 'mongodb') {
+        dispute = await storage.createDispute(disputeData);
+      } else {
+        dispute = await (storage as typeof firebaseStorage).createDispute(disputeData);
+      }
+
       res.status(201).json(dispute);
     } catch (error: any) {
       console.error("Create dispute error:", error);
@@ -2013,14 +2102,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: error.errors
       });
 
-      // Clean up uploaded files if validation failed
+      // Clean up uploaded files if creation failed
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files) {
           await fs.unlink(file.path).catch(() => { });
         }
       }
 
-      // Provide more detailed error message
       let errorMessage = "Invalid data provided";
       if (error.errors && Array.isArray(error.errors)) {
         errorMessage = error.errors.map((e: any) => `${e.path?.join('.') || 'field'}: ${e.message}`).join(', ');
@@ -2029,6 +2117,265 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.status(400).json({ message: errorMessage });
+    }
+  });
+
+  // PUT /api/disputes/:id - Update dispute (status, resolution, assignment)
+  app.put("/api/disputes/:id", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.uid;
+      const userRole = req.user!.role;
+      const updates = req.body;
+
+      console.log("[Dispute] Update request:", { id, userId, userRole, updates });
+
+      const { type, storage } = await getDisputeStorage();
+
+      // Get the existing dispute first to check permissions
+      let existingDispute: any = null;
+      if (type === 'mongodb') {
+        existingDispute = await storage.getDispute(id);
+      } else {
+        existingDispute = await (storage as typeof firebaseStorage).getDisputeById(id);
+      }
+
+      if (!existingDispute) {
+        return res.status(404).json({ message: "Dispute not found" });
+      }
+
+      // Authorization check
+      const isInvolved = existingDispute.raisedBy === userId || existingDispute.againstUser === userId;
+      const isAdmin = userRole === 'admin';
+
+      if (!isAdmin && !isInvolved) {
+        return res.status(403).json({ message: "You are not authorized to update this dispute" });
+      }
+
+      // Non-admin users can only close/withdraw their own dispute
+      if (!isAdmin) {
+        const allowedStatuses = ['closed'];
+        if (updates.status && !allowedStatuses.includes(updates.status)) {
+          return res.status(403).json({ message: "Only admins can change dispute status to " + updates.status });
+        }
+        // Non-admins can't set resolution or assign admins
+        delete updates.resolution;
+        delete updates.assignedAdmin;
+        delete updates.resolvedBy;
+      }
+
+      // Build the update object
+      const updateData: any = {};
+      if (updates.status) updateData.status = updates.status;
+      if (updates.resolution) updateData.resolution = updates.resolution;
+      if (updates.assignedAdmin) updateData.assignedAdmin = updates.assignedAdmin;
+
+      // If resolving, record who resolved and when
+      if (updates.status === 'resolved' || updates.status === 'closed' || updates.status === 'rejected') {
+        updateData.resolvedBy = userId;
+        updateData.resolvedAt = new Date();
+      }
+
+      let updatedDispute: any;
+      if (type === 'mongodb') {
+        updatedDispute = await storage.updateDispute(id, updateData);
+      } else {
+        updatedDispute = await (storage as typeof firebaseStorage).updateDispute(id, updateData);
+      }
+
+      if (!updatedDispute) {
+        return res.status(500).json({ message: "Failed to update dispute" });
+      }
+
+      res.json(updatedDispute);
+    } catch (error: any) {
+      console.error("Update dispute error:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  });
+
+  // POST /api/disputes/:id/messages - Add a message to a dispute
+  app.post("/api/disputes/:id/messages", authenticateToken, upload.array('attachments'), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.uid;
+      const userRole = req.user!.role;
+      const { message } = req.body;
+
+      if (!message || !message.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      const { type, storage } = await getDisputeStorage();
+
+      // Get dispute to check authorization
+      let dispute: any = null;
+      if (type === 'mongodb') {
+        dispute = await storage.getDispute(id);
+      } else {
+        dispute = await (storage as typeof firebaseStorage).getDisputeById(id);
+      }
+
+      if (!dispute) {
+        return res.status(404).json({ message: "Dispute not found" });
+      }
+
+      // Authorization: only admin or involved parties can message
+      const isInvolved = dispute.raisedBy === userId || dispute.againstUser === userId;
+      const isAdmin = userRole === 'admin';
+
+      if (!isAdmin && !isInvolved) {
+        return res.status(403).json({ message: "You are not authorized to message on this dispute" });
+      }
+
+      // Check if dispute is still open for messages
+      if (['resolved', 'closed', 'rejected'].includes(dispute.status)) {
+        return res.status(400).json({ message: "Cannot add messages to a " + dispute.status + " dispute" });
+      }
+
+      // Process attachments
+      const attachments: any[] = [];
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files) {
+          const fileName = path.basename(file.path);
+          const fileUrl = `/uploads/${fileName}`;
+          attachments.push({
+            fileName: file.originalname,
+            filePath: fileUrl,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+          });
+        }
+      }
+
+      // Get sender name from user profile
+      let senderName = req.user!.fullName || req.user!.email || 'Unknown User';
+      try {
+        const userProfile = await firebaseStorage.getUserById(userId);
+        if (userProfile) {
+          senderName = userProfile.fullName || userProfile.email;
+        }
+      } catch (e) {
+        // Use fallback name
+      }
+
+      const messageData = {
+        senderId: userId,
+        senderName,
+        senderRole: userRole,
+        message: message.trim(),
+        attachments: attachments.length > 0 ? attachments : undefined,
+      };
+
+      if (type === 'mongodb') {
+        const { mongoDBDisputeStorage } = await import('./mongodb-disputes-storage');
+        const updatedDispute = await mongoDBDisputeStorage.addMessage(id, messageData);
+        if (!updatedDispute) {
+          return res.status(500).json({ message: "Failed to add message" });
+        }
+        return res.json(updatedDispute);
+      } else {
+        // Firebase fallback: update the dispute with a new message in the messages array
+        const existingMessages = (dispute as any).messages || [];
+        const newMessage = {
+          ...messageData,
+          createdAt: new Date(),
+        };
+        existingMessages.push(newMessage);
+
+        const updatedDispute = await (storage as typeof firebaseStorage).updateDispute(id, {
+          messages: existingMessages,
+        } as any);
+        return res.json(updatedDispute);
+      }
+    } catch (error: any) {
+      console.error("Add dispute message error:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  });
+
+  // POST /api/disputes/:id/evidence - Add evidence to a dispute
+  app.post("/api/disputes/:id/evidence", authenticateToken, upload.array('files'), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.uid;
+      const userRole = req.user!.role;
+
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        return res.status(400).json({ message: "At least one file is required" });
+      }
+
+      const { type, storage } = await getDisputeStorage();
+
+      // Get dispute to check authorization
+      let dispute: any = null;
+      if (type === 'mongodb') {
+        dispute = await storage.getDispute(id);
+      } else {
+        dispute = await (storage as typeof firebaseStorage).getDisputeById(id);
+      }
+
+      if (!dispute) {
+        return res.status(404).json({ message: "Dispute not found" });
+      }
+
+      // Authorization: only admin or involved parties can add evidence
+      const isInvolved = dispute.raisedBy === userId || dispute.againstUser === userId;
+      const isAdmin = userRole === 'admin';
+
+      if (!isAdmin && !isInvolved) {
+        return res.status(403).json({ message: "You are not authorized to add evidence to this dispute" });
+      }
+
+      // Process files
+      let updatedDispute: any = dispute;
+      for (const file of req.files) {
+        const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          await fs.unlink(file.path).catch(() => { });
+          return res.status(400).json({ message: `File ${file.originalname} is not a valid type.` });
+        }
+
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+          await fs.unlink(file.path).catch(() => { });
+          return res.status(400).json({ message: `File ${file.originalname} is too large. Maximum size is 10MB.` });
+        }
+
+        const fileName = path.basename(file.path);
+        const fileUrl = `/uploads/${fileName}`;
+        const evidenceData = {
+          fileName: file.originalname,
+          filePath: fileUrl,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          uploadedBy: userId,
+        };
+
+        if (type === 'mongodb') {
+          const { mongoDBDisputeStorage } = await import('./mongodb-disputes-storage');
+          updatedDispute = await mongoDBDisputeStorage.addEvidence(id, evidenceData);
+        } else {
+          const existingEvidence = (dispute as any).evidence || [];
+          existingEvidence.push({ ...evidenceData, uploadedAt: new Date() });
+          updatedDispute = await (storage as typeof firebaseStorage).updateDispute(id, {
+            evidence: existingEvidence,
+          } as any);
+        }
+      }
+
+      res.json(updatedDispute);
+    } catch (error: any) {
+      console.error("Add dispute evidence error:", error);
+
+      // Clean up uploaded files on error
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files) {
+          await fs.unlink(file.path).catch(() => { });
+        }
+      }
+
+      res.status(500).json({ message: error.message || "Internal server error" });
     }
   });
 

@@ -83,18 +83,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Logo */}
-        <div className="text-center">
-          <Link href="/" className="inline-flex items-center justify-center" data-testid="link-home">
-            <div className="h-36 w-36 overflow-hidden flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-sm w-full space-y-6">
+        {/* Logo and Heading */}
+        <div className="flex flex-col items-center justify-center gap-2 mt-2">
+          <Link href="/" className="flex items-center justify-center mb-2" data-testid="link-home">
+            <div className="h-24 w-24 overflow-hidden flex items-center justify-center rounded-full shadow-md bg-white">
               <img 
                 src="/uploads/logo.png" 
                 alt="SmartRent Logo" 
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
                 onError={(e) => {
-                  // Fallback to icon if logo fails to load
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
                   const fallback = target.parentElement?.nextElementSibling as HTMLElement;
@@ -102,14 +101,14 @@ export default function Login() {
                 }}
               />
             </div>
-            <div className="h-36 w-36 bg-primary-500 rounded-lg flex items-center justify-center hidden">
-              <Home className="text-white h-16 w-16" />
+            <div className="h-24 w-24 bg-primary-500 rounded-full flex items-center justify-center hidden">
+              <Home className="text-white h-12 w-12" />
             </div>
           </Link>
-          <h2 className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
             Welcome back
           </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
             Sign in to your account to continue
           </p>
         </div>
@@ -123,7 +122,7 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <Label htmlFor="email">Email Address</Label>
                 <Input

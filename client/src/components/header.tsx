@@ -187,68 +187,78 @@ export function Header() {
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-96 max-h-[420px] overflow-y-auto">
-                    <div className="flex items-center justify-between px-3 py-2">
-                      <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
-                      {unreadCount > 0 && (
-                        <button
-                          onClick={() => markAllRead.mutate()}
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                          <CheckCheck className="h-3 w-3" /> Mark all read
-                        </button>
-                      )}
-                    </div>
-                    <DropdownMenuSeparator />
-                    {notifications.length === 0 ? (
-                      <div className="px-3 py-6 text-sm text-gray-500 text-center">
-                        You're all caught up. No new notifications.
+                    <DropdownMenuContent align="end" className="w-96 max-h-[420px] overflow-y-auto bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <DropdownMenuLabel className="p-0 text-lg font-bold text-gray-900 dark:text-white">Notifications</DropdownMenuLabel>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={() => markAllRead.mutate()}
+                            className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+                          >
+                            <CheckCheck className="h-4 w-4" /> Mark all read
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      notifications.map((notification) => (
-                        <DropdownMenuItem
-                          key={notification.id}
-                          className={`flex flex-col items-start gap-1 cursor-pointer ${
-                            notification.isRead ? "opacity-60" : "bg-primary/5"
-                          }`}
-                          onClick={() => {
-                            if (!notification.isRead && notification.id !== "verification") {
-                              markRead.mutate(notification.id);
-                            }
-                            if (notification.contractId) {
-                              setLocation("/contracts");
-                            }
-                          }}
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            {notification.type === "contract_modified" ? (
-                              <FileText className="h-4 w-4 text-amber-500 shrink-0" />
-                            ) : (
-                              <Bell className="h-4 w-4 text-primary shrink-0" />
-                            )}
-                            <span className="text-sm font-semibold text-gray-900 dark:text-white flex-1">
-                              {notification.title}
-                            </span>
-                            {!notification.isRead && (
-                              <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                            )}
+                      <div className="px-2 py-2">
+                        {notifications.length === 0 ? (
+                          <div className="px-3 py-6 text-sm text-gray-500 text-center">
+                            You're all caught up. No new notifications.
                           </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-300 pl-6">
-                            {notification.message}
-                          </span>
-                          {notification.blockchainHash && (
-                            <span className="text-[10px] text-indigo-500 dark:text-indigo-400 pl-6 flex items-center gap-1 font-mono">
-                              <Link2 className="h-3 w-3" />
-                              {notification.blockchainHash.slice(0, 10)}...{notification.blockchainHash.slice(-8)}
-                            </span>
-                          )}
-                          <span className="text-[10px] text-gray-400 pl-6">
-                            {new Date(notification.createdAt).toLocaleString()}
-                          </span>
-                        </DropdownMenuItem>
-                      ))
-                    )}
-                  </DropdownMenuContent>
+                        ) : (
+                          notifications.map((notification) => (
+                            <DropdownMenuItem
+                              key={notification.id}
+                              className={`transition-all duration-150 flex flex-col items-start gap-2 cursor-pointer rounded-lg px-3 py-3 mb-2 shadow-sm border border-gray-100 dark:border-gray-800 ${
+                                notification.isRead ? "opacity-60" : "bg-primary/10 border-primary"
+                              } hover:bg-primary/20 hover:border-primary/60`}
+                              onClick={() => {
+                                if (!notification.isRead && notification.id !== "verification") {
+                                  markRead.mutate(notification.id);
+                                }
+                                if (notification.contractId) {
+                                  setLocation("/contracts");
+                                }
+                              }}
+                            >
+                              <div className="flex items-center gap-3 w-full">
+                                {notification.type === "contract_modified" ? (
+                                  <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-900">
+                                    <FileText className="h-5 w-5 text-amber-600 dark:text-amber-300" />
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900">
+                                    <Bell className="h-5 w-5 text-primary-600 dark:text-primary-300" />
+                                  </span>
+                                )}
+                                <div className="flex-1">
+                                  <span className="text-base font-semibold text-gray-900 dark:text-white">
+                                    {notification.title}
+                                  </span>
+                                  <span className="block text-xs text-gray-500 dark:text-gray-300 mt-1">
+                                    {notification.message}
+                                  </span>
+                                  {notification.blockchainHash && (
+                                    <span className="block text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
+                                      <Link2 className="inline h-4 w-4 mr-1" />
+                                      <a href={`https://etherscan.io/tx/${notification.blockchainHash}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-800">
+                                        {notification.blockchainHash.slice(0, 10)}...{notification.blockchainHash.slice(-8)}
+                                      </a>
+                                    </span>
+                                  )}
+                                </div>
+                                {!notification.isRead && (
+                                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                                )}
+                              </div>
+                              <span className="text-[11px] text-gray-400 mt-1">
+                                {notification.type === "contract_modified" ? "Edited on: " : ""}
+                                {new Date(notification.createdAt).toLocaleString()}
+                              </span>
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                      </div>
+                    </DropdownMenuContent>
                 </DropdownMenu>
 
                 {/* User Menu */}

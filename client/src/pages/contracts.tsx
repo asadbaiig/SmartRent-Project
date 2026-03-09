@@ -15,6 +15,7 @@ import { ContractDocumentView } from "@/components/contract-document-view";
 import { SignaturePad } from "@/components/signature-pad";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { EditContractDialog } from "./EditContractDialog";
 import { 
   FileText, 
   Plus, 
@@ -49,7 +50,9 @@ export default function Contracts() {
   const [contractToDelete, setContractToDelete] = useState<string | null>(null);
   const [viewingContract, setViewingContract] = useState<any | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  // Edit contract state removed
+  // Edit contract state
+  const [editingContract, setEditingContract] = useState<any | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Set active tab based on current route
   useEffect(() => {
@@ -270,17 +273,31 @@ export default function Contracts() {
                       <Eye className="mr-1 h-3 w-3" />
                       View
                     </Button>
-                    {/* Edit button removed */}
                     {user?.role === 'landlord' && contract.landlordId === user.id && (
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handleDeleteClick(contract.id)}
-                        data-testid={`button-delete-${contract.id}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => {
+                            setEditingContract(contract);
+                            setIsEditDialogOpen(true);
+                          }}
+                          data-testid={`button-edit-${contract.id}`}
+                        >
+                          <FileText className="h-3 w-3" />
+                          Edit
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteClick(contract.id)}
+                          data-testid={`button-delete-${contract.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -819,6 +836,13 @@ export default function Contracts() {
 
   return (
     <>
+      {isEditDialogOpen && <EditContractDialog 
+        editingContract={editingContract} 
+        setIsEditDialogOpen={setIsEditDialogOpen} 
+        setEditingContract={setEditingContract} 
+        toast={toast} 
+        queryClient={queryClient} 
+      />}
       <motion.div 
         className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8"
         initial="hidden"

@@ -226,6 +226,10 @@ export function MapView({ properties, height = 520, highlightedProperty }: MapVi
                     marker.setStyle({ weight: 2.5, fillOpacity: 0.9 });
                   }
                 });
+                  // Click effect: open popup
+                  marker.on("click", () => {
+                    marker.openPopup();
+                  });
 
                 markerBounds.extend([m.lat, m.lng]);
 

@@ -37,7 +37,7 @@ const PROVINCE_COLORS: Record<string, string> = {
   "GILGIT BALTISTAN": "#06b6d4",
   "AZAD KASHMIR": "#ec4899",
   FATA: "#f97316",
-  "Indian Occupied Kashmir": "#cbd5e1",
+  "INDIAN OCCUPIED KASHMIR": "#64748b",
 };
 
 // Custom circle marker per city
@@ -54,7 +54,7 @@ const CITY_MARKER_COLORS: Record<string, string> = {
   gujranwala: "#818cf8",
 };
 
-const PAKISTAN_BOUNDS = L.latLngBounds(L.latLng(23.5, 60.9), L.latLng(37.1, 77.5));
+const PAKISTAN_BOUNDS = L.latLngBounds(L.latLng(23.5, 60.9), L.latLng(37.5, 79.5));
 
 interface MapViewProps {
   properties: MapProperty[];
@@ -151,11 +151,12 @@ export function MapView({ properties, height = 520, highlightedProperty }: MapVi
                   const boundaryLayer = L.geoJSON(geo as any, {
                     style: (feature) => {
                       const prov = (feature?.properties?.PROVINCE || "").toUpperCase();
-                      const color = PROVINCE_COLORS[prov] || PROVINCE_COLORS[(feature?.properties?.PROVINCE || "")] || "#cbd5e1";
+                      const color = PROVINCE_COLORS[prov] || PROVINCE_COLORS[(feature?.properties?.PROVINCE || "")] || "#64748b";
+                      const isIoK = prov === "INDIAN OCCUPIED KASHMIR" || prov === "IOK";
                       return {
                         color: color,
-                        weight: 0.8,
-                        opacity: 0.5,
+                        weight: isIoK ? 1.5 : 0.8,
+                        opacity: isIoK ? 0.8 : 0.5,
                         fillColor: color,
                         fillOpacity: 0.03,
                       };

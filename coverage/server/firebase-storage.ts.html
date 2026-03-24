@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">7.75% </span>
+                <span class="strong">7.59% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>47/606</span>
+                <span class='fraction'>47/619</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">7.75% </span>
+                <span class="strong">7.59% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>47/606</span>
+                <span class='fraction'>47/619</span>
             </div>
         
             
@@ -826,7 +826,24 @@
 <a name='L761'></a><a href='#L761'>761</a>
 <a name='L762'></a><a href='#L762'>762</a>
 <a name='L763'></a><a href='#L763'>763</a>
-<a name='L764'></a><a href='#L764'>764</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L764'></a><a href='#L764'>764</a>
+<a name='L765'></a><a href='#L765'>765</a>
+<a name='L766'></a><a href='#L766'>766</a>
+<a name='L767'></a><a href='#L767'>767</a>
+<a name='L768'></a><a href='#L768'>768</a>
+<a name='L769'></a><a href='#L769'>769</a>
+<a name='L770'></a><a href='#L770'>770</a>
+<a name='L771'></a><a href='#L771'>771</a>
+<a name='L772'></a><a href='#L772'>772</a>
+<a name='L773'></a><a href='#L773'>773</a>
+<a name='L774'></a><a href='#L774'>774</a>
+<a name='L775'></a><a href='#L775'>775</a>
+<a name='L776'></a><a href='#L776'>776</a>
+<a name='L777'></a><a href='#L777'>777</a>
+<a name='L778'></a><a href='#L778'>778</a>
+<a name='L779'></a><a href='#L779'>779</a>
+<a name='L780'></a><a href='#L780'>780</a>
+<a name='L781'></a><a href='#L781'>781</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1442,6 +1459,23 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2181,7 +2215,7 @@ export class FirebaseStorage {
 <span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
 <span class="fstat-no" title="function not covered" >  async getDisputes(filters: any = {}): Promise&lt;Dispute[]&gt; {</span>
-<span class="cstat-no" title="statement not covered" >    let q = collection(db, 'disputes');</span>
+<span class="cstat-no" title="statement not covered" >    let q: any = collection(db, 'disputes');</span>
 <span class="cstat-no" title="statement not covered" >    const constraints: any[] = [];</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    if (filters.contractId) {</span>
@@ -2196,7 +2230,7 @@ export class FirebaseStorage {
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    const querySnapshot = await getDocs(q);</span>
     
-<span class="cstat-no" title="statement not covered" >    return querySnapshot.docs.map(doc =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    let results = querySnapshot.docs.map((doc: any) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      const data = doc.data();</span>
 <span class="cstat-no" title="statement not covered" >      return {</span>
 <span class="cstat-no" title="statement not covered" >        id: doc.id,</span>
@@ -2206,6 +2240,23 @@ export class FirebaseStorage {
 <span class="cstat-no" title="statement not covered" >        updatedAt: convertTimestamp(data.updatedAt)</span>
 <span class="cstat-no" title="statement not covered" >      } as Dispute;</span>
 <span class="cstat-no" title="statement not covered" >    });</span>
+&nbsp;
+    // Apply in-memory filters for fields not supported by Firestore indexes
+<span class="cstat-no" title="statement not covered" >    if (filters.raisedBy) {</span>
+<span class="cstat-no" title="statement not covered" >      results = results.filter((d: any) =&gt; d.raisedBy === filters.raisedBy);</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    if (filters.againstUser) {</span>
+<span class="cstat-no" title="statement not covered" >      results = results.filter((d: any) =&gt; d.againstUser === filters.againstUser);</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    if (filters.status) {</span>
+<span class="cstat-no" title="statement not covered" >      results = results.filter((d: any) =&gt; d.status === filters.status);</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+    // If userId provided, show disputes where user is either party
+<span class="cstat-no" title="statement not covered" >    if (filters.userId) {</span>
+<span class="cstat-no" title="statement not covered" >      results = results.filter((d: any) =&gt; d.raisedBy === filters.userId || d.againstUser === filters.userId);</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    return results;</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
   // Utility methods for stats and other operations
@@ -2359,7 +2410,7 @@ export const firebaseStorage = new FirebaseStorage();
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-21T21:52:20.213Z
+                at 2026-03-10T03:42:38.472Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -91,7 +91,7 @@ export default function PropertyDetails() {
     window.location.href = `tel:${phoneNumber.replace(/\s/g, "")}`;
   };
 
-  const handleFavorite = () => {
+  const handleFavorite = async () => {
     if (!user) {
       toast({
         title: "Login Required", 
@@ -101,10 +101,26 @@ export default function PropertyDetails() {
       return;
     }
 
-    toast({
-      title: "Added to Favorites",
-      description: "Property saved to your favorites list",
-    });
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/properties/${id}/save`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error("Failed to save property");
+
+      toast({
+        title: "Added to Favorites",
+        description: "Property saved to your favorites list",
+      });
+    } catch (error) {
+      toast({
+        title: "Save Failed",
+        description: "Could not save this property. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {

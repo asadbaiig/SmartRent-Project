@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChartContainer,
   ChartTooltip,
@@ -18,22 +19,43 @@ import {
   CartesianGrid,
 } from "recharts";
 
-// Generate dummy data for the last 12 months
-const generateDummyData = () => {
-  const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  ];
-  
-  return months.map((month, index) => ({
-    month,
-    revenue: Math.floor(Math.random() * 50000) + 20000,
-    properties: Math.floor(Math.random() * 15) + 5,
-    contracts: Math.floor(Math.random() * 10) + 3,
-    visitors: Math.floor(Math.random() * 500) + 200,
-    payments: Math.floor(Math.random() * 40000) + 25000,
-    savedProperties: Math.floor(Math.random() * 8) + 2,
-  }));
+const createEmptyData = () => {
+  const now = new Date();
+
+  return Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
+    return {
+      month: date.toLocaleString("en-US", { month: "short" }),
+      revenue: 0,
+      properties: 0,
+      contracts: 0,
+      visitors: 0,
+      payments: 0,
+      savedProperties: 0,
+    };
+  });
+};
+
+const emptyChartData = createEmptyData();
+
+type AnalyticsPoint = {
+  month: string;
+  revenue: number;
+  properties: number;
+  contracts: number;
+  visitors: number;
+  payments: number;
+  savedProperties: number;
+};
+
+const fetchAnalyticsData = async (): Promise<AnalyticsPoint[]> => {
+  const token = localStorage.getItem("token");
+  const response = await fetch("/api/dashboard/analytics", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) throw new Error("Failed to fetch analytics");
+  return response.json();
 };
 
 const chartConfig = {
@@ -74,8 +96,12 @@ export function AnalyticsChart({
   type = "revenue", 
   chartStyle = "area" 
 }: AnalyticsChartProps) {
-  const [data, setData] = useState(generateDummyData());
+  const { data: analyticsData } = useQuery({
+    queryKey: ["/api/dashboard/analytics"],
+    queryFn: fetchAnalyticsData,
+  });
   const [isVisible, setIsVisible] = useState(false);
+  const data = analyticsData?.length ? analyticsData : emptyChartData;
 
   useEffect(() => {
     setIsVisible(true);
@@ -248,7 +274,11 @@ export function AnalyticsChart({
 
 // Multi-metric chart component
 export function MultiMetricChart() {
-  const [data] = useState(generateDummyData());
+  const { data: analyticsData } = useQuery({
+    queryKey: ["/api/dashboard/analytics"],
+    queryFn: fetchAnalyticsData,
+  });
+  const data = analyticsData?.length ? analyticsData : emptyChartData;
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -324,4 +354,3 @@ export function MultiMetricChart() {
     </motion.div>
   );
 }
-

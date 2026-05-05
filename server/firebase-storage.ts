@@ -672,11 +672,16 @@ export class FirebaseStorage {
   async getTenantStats(tenantId: string): Promise<any> {
     const contracts = await this.getContracts({ tenantId });
     const payments = await this.getPayments({ tenantId });
+    const savedProperties = await this.getSavedProperties(tenantId);
     
     return {
       activeContracts: contracts.filter(c => c.status === 'active').length,
       totalPayments: payments.length,
-      overduePayments: payments.filter(p => p.status === 'overdue').length
+      overduePayments: payments.filter(p => p.status === 'overdue').length,
+      currentRent: Number(contracts.find(c => c.status === 'active')?.monthlyRent ?? 0),
+      contractStatus: contracts.some(c => c.status === 'active') ? 'active' : 'none',
+      nextPaymentDate: payments.find(p => p.status === 'pending')?.dueDate ?? null,
+      savedProperties: savedProperties.length,
     };
   }
 
@@ -684,12 +689,75 @@ export class FirebaseStorage {
     const usersSnapshot = await getDocs(collection(db, 'users'));
     const propertiesSnapshot = await getDocs(collection(db, 'properties'));
     const contractsSnapshot = await getDocs(collection(db, 'contracts'));
+    const disputesSnapshot = await getDocs(collection(db, 'disputes'));
+    const users = usersSnapshot.docs.map(doc => doc.data());
+    const contracts = contractsSnapshot.docs.map(doc => doc.data());
+    const disputes = disputesSnapshot.docs.map(doc => doc.data());
     
     return {
       totalUsers: usersSnapshot.size,
       totalProperties: propertiesSnapshot.size,
-      totalContracts: contractsSnapshot.size
+      totalContracts: contractsSnapshot.size,
+      pendingVerifications: users.filter((user: any) => user.verificationStatus === 'pending').length,
+      activeContracts: contracts.filter((contract: any) => contract.status === 'active').length,
+      openDisputes: disputes.filter((dispute: any) => dispute.status === 'open' || dispute.status === 'in_progress').length,
     };
+  }
+
+  async saveProperty(userId: string, propertyId: string): Promise<any> {
+    const savedPropertyId = `${userId}_${propertyId}`;
+    const docRef = doc(db, 'savedProperties', savedPropertyId);
+    const existing = await getDoc(docRef);
+
+    if (existing.exists()) {
+      const data = existing.data();
+      return {
+        id: existing.id,
+        ...data,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+      };
+    }
+
+    const savedProperty = {
+      userId,
+      propertyId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    await setDoc(docRef, savedProperty);
+    const savedDoc = await getDoc(docRef);
+    const data = savedDoc.data();
+
+    return {
+      id: savedDoc.id,
+      ...data,
+      createdAt: convertTimestamp(data?.createdAt),
+      updatedAt: convertTimestamp(data?.updatedAt),
+    };
+  }
+
+  async getSavedProperties(userId: string): Promise<any[]> {
+    const q = query(
+      collection(db, 'savedProperties'),
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+      };
+    }).sort((a, b) => {
+      const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+      return bTime - aTime;
+    });
   }
 
   // Message operations

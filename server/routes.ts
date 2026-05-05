@@ -1859,40 +1859,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Use MongoDB for property stats
         const propertyStats = await mongoDBStorage.getLandlordStats(req.user!.uid);
         // Get contract stats from Firebase
-        const contracts = await firebaseStorage.getContracts({ landlordId: req.user!.uid });
+        const mongoContracts = isMongoDBConnected() ? await mongoDBStorage.getContracts({ landlordId: req.user!.uid }) : [];
+        const firebaseContracts = await firebaseStorage.getContracts({ landlordId: req.user!.uid });
+        const contractsById = new Map<string, any>();
+        [...mongoContracts, ...firebaseContracts].forEach((contract: any) => contractsById.set(contract.id, contract));
+        const contracts = Array.from(contractsById.values());
+        const activeContracts = contracts.filter(c => c.status === 'active');
         stats = {
           ...propertyStats,
-          activeContracts: contracts.filter(c => c.status === 'active').length,
+          activeContracts: activeContracts.length,
+          monthlyRevenue: activeContracts.reduce((sum, contract) => sum + Number(contract.monthlyRent || 0), 0),
         };
       } else if (req.user!.role === 'tenant') {
         stats = await firebaseStorage.getTenantStats(req.user!.uid);
       } else if (req.user!.role === 'admin') {
         // Get property count from MongoDB
-        const allProperties = await mongoDBStorage.getProperties({});
+        const allProperties = isMongoDBConnected() ? await mongoDBStorage.getProperties({}) : [];
+        const mongoContracts = isMongoDBConnected() ? await mongoDBStorage.getContracts({}) : [];
+        const firebaseContracts = await firebaseStorage.getContracts({});
+        const contractsById = new Map<string, any>();
+        [...mongoContracts, ...firebaseContracts].forEach((contract: any) => contractsById.set(contract.id, contract));
+        const contracts = Array.from(contractsById.values());
         const adminStats = await firebaseStorage.getAdminStats();
         stats = {
           ...adminStats,
-          totalProperties: allProperties.length,
+          totalProperties: isMongoDBConnected() ? allProperties.length : adminStats.totalProperties,
+          totalContracts: contracts.length,
+          activeContracts: contracts.filter(contract => contract.status === 'active').length,
         };
       }
 
       res.json(stats);
     } catch (error) {
       console.error("Get dashboard stats error:", error);
-      // Fallback: return dummy stats instead of 500 error
-      const dummyStats = {
-        totalProperties: 65,
-        activeContracts: 45,
-        monthlyRevenue: 670000,
-        pendingVerifications: 12,
-        currentRent: 35000,
-        contractStatus: 'active',
-        nextPaymentDate: '2025-12-20',
-        savedProperties: 8,
-        totalUsers: 1150,
-        openDisputes: 3,
+      const emptyStats = {
+        totalProperties: 0,
+        activeContracts: 0,
+        monthlyRevenue: 0,
+        pendingVerifications: 0,
+        currentRent: 0,
+        contractStatus: 'none',
+        nextPaymentDate: null,
+        savedProperties: 0,
+        totalUsers: 0,
+        openDisputes: 0,
       };
-      res.json(dummyStats);
+      res.json(emptyStats);
+    }
+  });
+
+  app.get("/api/dashboard/analytics", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user!.uid;
+      const role = req.user!.role;
+      const now = new Date();
+      const months = Array.from({ length: 12 }, (_, index) => {
+        const date = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
+        return {
+          key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+          month: date.toLocaleString("en-US", { month: "short" }),
+          revenue: 0,
+          properties: 0,
+          contracts: 0,
+          visitors: 0,
+          payments: 0,
+          savedProperties: 0,
+        };
+      });
+      const monthMap = new Map(months.map((month) => [month.key, month]));
+
+      const getMonthKey = (value: any) => {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return null;
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      };
+
+      type NumericAnalyticsField = "revenue" | "properties" | "contracts" | "visitors" | "payments" | "savedProperties";
+      const addToMonth = (dateValue: any, field: NumericAnalyticsField, amount = 1) => {
+        const key = getMonthKey(dateValue);
+        if (!key || !monthMap.has(key)) return;
+        const bucket = monthMap.get(key)!;
+        bucket[field] += amount;
+      };
+
+      const getScopedContracts = async () => {
+        const filters = role === 'tenant' ? { tenantId: userId } : role === 'landlord' ? { landlordId: userId } : {};
+        const mongoContracts = isMongoDBConnected() ? await mongoDBStorage.getContracts(filters) : [];
+        const firebaseContracts = await firebaseStorage.getContracts(filters);
+        const byId = new Map<string, any>();
+        [...mongoContracts, ...firebaseContracts].forEach((contract: any) => byId.set(contract.id, contract));
+        return Array.from(byId.values());
+      };
+
+      if (role === 'landlord') {
+        const properties = isMongoDBConnected()
+          ? await mongoDBStorage.getPropertiesByLandlord(userId)
+          : await firebaseStorage.getProperties({ landlordId: userId });
+        const contracts = await getScopedContracts();
+        const payments = await firebaseStorage.getPayments({ landlordId: userId });
+
+        properties.forEach((property: any) => addToMonth(property.createdAt, "properties"));
+        contracts.forEach((contract: any) => {
+          addToMonth(contract.createdAt, "contracts");
+          if (contract.status === "active") {
+            addToMonth(contract.startDate ?? contract.createdAt, "revenue", Number(contract.monthlyRent || 0));
+          }
+        });
+        payments
+          .filter((payment: any) => payment.status === "paid")
+          .forEach((payment: any) => addToMonth(payment.paidDate ?? payment.dueDate ?? payment.createdAt, "revenue", Number(payment.amount || 0)));
+      } else if (role === 'tenant') {
+        const contracts = await getScopedContracts();
+        const payments = await firebaseStorage.getPayments({ tenantId: userId });
+        const savedProperties = await firebaseStorage.getSavedProperties(userId);
+
+        contracts.forEach((contract: any) => addToMonth(contract.createdAt, "contracts"));
+        payments.forEach((payment: any) => {
+          const paymentDate = payment.paidDate ?? payment.dueDate ?? payment.createdAt;
+          addToMonth(paymentDate, "payments", Number(payment.amount || 0));
+        });
+        savedProperties.forEach((savedProperty: any) => addToMonth(savedProperty.createdAt, "savedProperties"));
+      } else {
+        const properties = isMongoDBConnected()
+          ? await mongoDBStorage.getProperties({})
+          : await firebaseStorage.getProperties({});
+        const contracts = await getScopedContracts();
+        const payments = await firebaseStorage.getPayments({});
+
+        properties.forEach((property: any) => addToMonth(property.createdAt, "properties"));
+        contracts.forEach((contract: any) => {
+          addToMonth(contract.createdAt, "contracts");
+          if (contract.status === "active") {
+            addToMonth(contract.startDate ?? contract.createdAt, "revenue", Number(contract.monthlyRent || 0));
+          }
+        });
+        payments
+          .filter((payment: any) => payment.status === "paid")
+          .forEach((payment: any) => addToMonth(payment.paidDate ?? payment.dueDate ?? payment.createdAt, "revenue", Number(payment.amount || 0)));
+      }
+
+      res.json(months);
+    } catch (error) {
+      console.error("Get dashboard analytics error:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard analytics" });
+    }
+  });
+
+  app.post("/api/properties/:id/save", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const savedProperty = await firebaseStorage.saveProperty(req.user!.uid, req.params.id);
+      res.status(201).json(savedProperty);
+    } catch (error) {
+      console.error("Save property error:", error);
+      res.status(500).json({ message: "Failed to save property" });
     }
   });
   // ==========================================

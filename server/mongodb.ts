@@ -1,7 +1,27 @@
 // Dynamic import for mongoose
 let mongoose: any;
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/smartrent';
+const DEFAULT_MONGODB_DATABASE = 'smartrent';
+
+export function resolveMongoDBUri(): string {
+  const atlasUri = process.env.MONGODB_SRV_URL;
+  const localUri = process.env.MONGODB_URI;
+  const selectedUri = atlasUri || localUri || `mongodb://localhost:27017/${DEFAULT_MONGODB_DATABASE}`;
+
+  return ensureDatabaseName(selectedUri, process.env.MONGODB_DATABASE || DEFAULT_MONGODB_DATABASE);
+}
+
+function ensureDatabaseName(uri: string, databaseName: string): string {
+  const parsedUri = new URL(uri);
+
+  if (!parsedUri.pathname || parsedUri.pathname === '/') {
+    parsedUri.pathname = `/${databaseName}`;
+  }
+
+  return parsedUri.toString();
+}
+
+const MONGODB_URI = resolveMongoDBUri();
 
 let isConnected = false;
 let connectionAttempted = false;
@@ -37,7 +57,7 @@ export async function connectMongoDB(): Promise<boolean> {
     isConnected = true;
     setupEventHandlers();
     console.log('[MongoDB] ✅ Connected successfully to:', MONGODB_URI.replace(/\/\/.*@/, '//***:***@'));
-    console.log('[MongoDB] Database: smartrent');
+    console.log('[MongoDB] Database:', mongooseConnection.name);
     return true;
   } catch (error: any) {
     isConnected = false;

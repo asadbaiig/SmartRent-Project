@@ -23,6 +23,8 @@
     "blockchain:check": "cd blockchain && npx hardhat run scripts/quick-test.cjs --network localhost",
     "blockchain:backfill": "npx tsx server/scripts/backfill-contracts-to-blockchain.ts",
     "blockchain:check-sync": "npx tsx server/scripts/check-mongodb-blockchain-sync.ts",
+    "mongodb:migrate-atlas": "npx tsx server/scripts/migrate-local-mongodb-to-atlas.ts",
+    "cloudinary:migrate-uploads": "npx tsx server/scripts/migrate-local-uploads-to-cloudinary.ts",
     "create-admin": "npx tsx server/scripts/create-admin-user.ts"
   },
   "dependencies": {
@@ -63,6 +65,7 @@
     "@types/multer": "^2.0.0",
     "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.10.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
@@ -80,6 +83,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
+    "mongodb": "^7.2.0",
     "mongoose": "^8.8.4",
     "multer": "^2.0.2",
     "next-themes": "^0.4.6",

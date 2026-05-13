@@ -7,12 +7,65 @@ import { isMongoDBConnected } from "./mongodb";
 import { getNotificationModel } from "./mongodb-models";
 import { blockchainService } from "./blockchain-service";
 import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
 import path from "path";
 import { promises as fs } from "fs";
 import { z } from "zod";
 import { insertUserSchema, insertPropertySchema, insertContractSchema, insertPaymentSchema, insertDocumentSchema, insertDisputeSchema } from "@shared/schema";
 
 const upload = multer({ dest: 'uploads/' });
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dwpkax3ma',
+  api_key: process.env.CLOUDINARY_API_KEY || '921133431241869',
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
+const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const DOCUMENT_MIME_TYPES = [...IMAGE_MIME_TYPES, 'application/pdf'];
+
+async function cleanupTempFile(file?: Express.Multer.File) {
+  if (file?.path) {
+    await fs.unlink(file.path).catch(() => { });
+  }
+}
+
+async function validateUploadedFile(
+  file: Express.Multer.File,
+  allowedMimeTypes: string[],
+  maxSize: number,
+  typeMessage: string,
+) {
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    await cleanupTempFile(file);
+    throw new Error(typeMessage);
+  }
+
+  if (file.size > maxSize) {
+    await cleanupTempFile(file);
+    throw new Error(`File size must be less than ${Math.round(maxSize / (1024 * 1024))}MB`);
+  }
+}
+
+async function uploadFileToCloudinary(file: Express.Multer.File, folder: string) {
+  if (!process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_API_SECRET === '<your_api_secret>') {
+    await cleanupTempFile(file);
+    throw new Error('CLOUDINARY_API_SECRET is missing in .env');
+  }
+
+  try {
+    return await cloudinary.uploader.upload(file.path, {
+      folder,
+      resource_type: 'auto',
+      use_filename: true,
+      unique_filename: true,
+    });
+  } finally {
+    await cleanupTempFile(file);
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -639,8 +692,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Only show available properties
       filteredDataset = filteredDataset.filter(p => p.isAvailable !== false);
 
-      // Merge: Dataset properties first (prioritize actual data)
-      const allProperties = [...filteredDataset, ...mongoProperties];
+      // Merge user-created MongoDB listings first so newly listed properties appear immediately.
+      const allProperties = [...mongoProperties, ...filteredDataset];
       console.log("[API /properties] Total combined after all filters:", allProperties.length, "properties");
 
       res.setHeader("Cache-Control", "no-store");
@@ -841,9 +894,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return fallback;
       };
 
+      const parseCoordinate = (value: any) => {
+        if (typeof value !== "string" && typeof value !== "number") return undefined;
+        const numeric = typeof value === "number"
+          ? value
+          : parseFloat(value.toString().replace(/[^\d.-]/g, ""));
+        return Number.isFinite(numeric) ? numeric : undefined;
+      };
+
       const targetCities = ["islamabad", "lahore", "karachi"];
       const cityCounts: Record<string, number> = { islamabad: 0, lahore: 0, karachi: 0 };
       const mapProperties: any[] = [];
+
+      if (isMongoDBConnected()) {
+        const mongoMapProperties = await mongoDBStorage.getProperties({ isAvailable: true, limit: 100 });
+        for (const property of mongoMapProperties) {
+          const latitude = parseCoordinate((property as any).latitude ?? (property as any).coordinates?.lat);
+          const longitude = parseCoordinate((property as any).longitude ?? (property as any).coordinates?.lng);
+
+          if (latitude !== undefined && longitude !== undefined) {
+            mapProperties.push({
+              ...property,
+              latitude,
+              longitude,
+              coordinates: { lat: latitude, lng: longitude },
+            });
+          }
+        }
+      }
 
       // Read through CSV to find properties from target cities
       for (let i = 1; i < lines.length && (cityCounts.islamabad < 20 || cityCounts.lahore < 20 || cityCounts.karachi < 20); i++) {
@@ -854,14 +932,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (targetCities.includes(city) && cityCounts[city] < 20) {
           const latitudeRaw = getVal(cols, ["latitude", "lat"], "");
           const longitudeRaw = getVal(cols, ["longitude", "lng", "long", "lon"], "");
-
-          const parseCoordinate = (value: any) => {
-            if (typeof value !== "string" && typeof value !== "number") return undefined;
-            const numeric = typeof value === "number"
-              ? value
-              : parseFloat(value.toString().replace(/[^\d.-]/g, ""));
-            return Number.isFinite(numeric) ? numeric : undefined;
-          };
 
           const latitude = parseCoordinate(latitudeRaw);
           const longitude = parseCoordinate(longitudeRaw);
@@ -1557,31 +1627,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No receipt file uploaded" });
       }
 
-      // Validate file type
-      const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
-      if (!allowedMimeTypes.includes(req.file.mimetype)) {
-        await fs.unlink(req.file.path);
-        return res.status(400).json({ message: "Only JPEG, PNG, WebP images and PDF files are allowed" });
-      }
-
-      // Validate file size (10MB max for receipts)
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (req.file.size > maxSize) {
-        await fs.unlink(req.file.path);
-        return res.status(400).json({ message: "File size must be less than 10MB" });
-      }
+      await validateUploadedFile(
+        req.file,
+        DOCUMENT_MIME_TYPES,
+        MAX_DOCUMENT_SIZE,
+        "Only JPEG, PNG, WebP images and PDF files are allowed",
+      );
 
       // Get payment ID from request body if provided
       const { paymentId, contractId } = req.body;
+      const uploadedReceipt = await uploadFileToCloudinary(req.file, 'smartrent/receipts');
 
       // Store receipt as document in MongoDB
-      const fileUrl = `/uploads/${path.basename(req.file.path)}`;
       const documentData = {
         userId: req.user!.uid,
         contractId: contractId || undefined,
         type: 'payment_receipt',
         fileName: req.file.originalname,
-        filePath: fileUrl,
+        filePath: uploadedReceipt.secure_url,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         isVerified: false,
@@ -1593,7 +1656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         receipt: {
           id: receipt.id,
-          url: fileUrl,
+          url: uploadedReceipt.secure_url,
           fileName: req.file.originalname,
           fileSize: req.file.size,
           mimeType: req.file.mimetype,
@@ -1602,7 +1665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Receipt upload error:", error);
       if (req.file) {
-        await fs.unlink(req.file.path).catch(() => { });
+        await cleanupTempFile(req.file);
       }
       res.status(500).json({ message: error.message || "Failed to upload receipt" });
     }
@@ -1707,33 +1770,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      // Validate file type
-      const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-      if (!allowedMimeTypes.includes(req.file.mimetype)) {
-        // Delete the uploaded file
-        await fs.unlink(req.file.path);
-        return res.status(400).json({ message: "Only JPEG, PNG, and WebP images are allowed" });
-      }
+      await validateUploadedFile(
+        req.file,
+        IMAGE_MIME_TYPES,
+        MAX_IMAGE_SIZE,
+        "Only JPEG, PNG, and WebP images are allowed",
+      );
 
-      // Validate file size (5MB max)
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      if (req.file.size > maxSize) {
-        await fs.unlink(req.file.path);
-        return res.status(400).json({ message: "File size must be less than 5MB" });
-      }
-
-      // Return the file URL
-      const fileUrl = `/uploads/${path.basename(req.file.path)}`;
+      const uploadedImage = await uploadFileToCloudinary(req.file, 'smartrent/properties');
       res.status(200).json({
         success: true,
-        url: fileUrl,
+        url: uploadedImage.secure_url,
+        publicId: uploadedImage.public_id,
         fileName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Image upload error:", error);
-      res.status(500).json({ message: "Failed to upload image" });
+      if (req.file) {
+        await cleanupTempFile(req.file);
+      }
+      res.status(500).json({ message: error.message || "Failed to upload image" });
     }
   });
 
@@ -1744,11 +1802,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
+      await validateUploadedFile(
+        req.file,
+        DOCUMENT_MIME_TYPES,
+        MAX_DOCUMENT_SIZE,
+        "Only JPEG, PNG, WebP images and PDF files are allowed",
+      );
+
+      const uploadedDocument = await uploadFileToCloudinary(req.file, 'smartrent/documents');
+
       const documentData = {
         userId: req.user!.uid,
         type: req.body.type,
         fileName: req.file.originalname,
-        filePath: req.file.path,
+        filePath: uploadedDocument.secure_url,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         propertyId: req.body.propertyId || null,
@@ -1774,9 +1841,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.status(201).json(document);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload document error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      if (req.file) {
+        await cleanupTempFile(req.file);
+      }
+      res.status(500).json({ message: error.message || "Internal server error" });
     }
   });
 
@@ -2152,23 +2222,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const evidence: any[] = [];
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files) {
-          const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
-          if (!allowedMimeTypes.includes(file.mimetype)) {
-            await fs.unlink(file.path).catch(() => { });
-            return res.status(400).json({ message: `File ${file.originalname} is not a valid type. Only JPEG, PNG, WebP images and PDF files are allowed.` });
-          }
-
-          const maxSize = 10 * 1024 * 1024;
-          if (file.size > maxSize) {
-            await fs.unlink(file.path).catch(() => { });
-            return res.status(400).json({ message: `File ${file.originalname} is too large. Maximum size is 10MB.` });
-          }
-
-          const fileName = path.basename(file.path);
-          const fileUrl = `/uploads/${fileName}`;
+          await validateUploadedFile(
+            file,
+            DOCUMENT_MIME_TYPES,
+            MAX_DOCUMENT_SIZE,
+            `File ${file.originalname} is not a valid type. Only JPEG, PNG, WebP images and PDF files are allowed.`,
+          );
+          const uploadedEvidence = await uploadFileToCloudinary(file, 'smartrent/disputes/evidence');
           evidence.push({
             fileName: file.originalname,
-            filePath: fileUrl,
+            filePath: uploadedEvidence.secure_url,
             fileSize: file.size,
             mimeType: file.mimetype,
             uploadedBy: raisedBy,
@@ -2224,7 +2287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up uploaded files if creation failed
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files) {
-          await fs.unlink(file.path).catch(() => { });
+          await cleanupTempFile(file);
         }
       }
 
@@ -2356,11 +2419,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const attachments: any[] = [];
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files) {
-          const fileName = path.basename(file.path);
-          const fileUrl = `/uploads/${fileName}`;
+          await validateUploadedFile(
+            file,
+            DOCUMENT_MIME_TYPES,
+            MAX_DOCUMENT_SIZE,
+            `File ${file.originalname} is not a valid type. Only JPEG, PNG, WebP images and PDF files are allowed.`,
+          );
+          const uploadedAttachment = await uploadFileToCloudinary(file, 'smartrent/disputes/messages');
           attachments.push({
             fileName: file.originalname,
-            filePath: fileUrl,
+            filePath: uploadedAttachment.secure_url,
             fileSize: file.size,
             mimeType: file.mimetype,
           });
@@ -2409,6 +2477,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error("Add dispute message error:", error);
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files) {
+          await cleanupTempFile(file);
+        }
+      }
       res.status(500).json({ message: error.message || "Internal server error" });
     }
   });
@@ -2449,23 +2522,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process files
       let updatedDispute: any = dispute;
       for (const file of req.files) {
-        const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
-        if (!allowedMimeTypes.includes(file.mimetype)) {
-          await fs.unlink(file.path).catch(() => { });
-          return res.status(400).json({ message: `File ${file.originalname} is not a valid type.` });
-        }
-
-        const maxSize = 10 * 1024 * 1024;
-        if (file.size > maxSize) {
-          await fs.unlink(file.path).catch(() => { });
-          return res.status(400).json({ message: `File ${file.originalname} is too large. Maximum size is 10MB.` });
-        }
-
-        const fileName = path.basename(file.path);
-        const fileUrl = `/uploads/${fileName}`;
+        await validateUploadedFile(
+          file,
+          DOCUMENT_MIME_TYPES,
+          MAX_DOCUMENT_SIZE,
+          `File ${file.originalname} is not a valid type.`,
+        );
+        const uploadedEvidence = await uploadFileToCloudinary(file, 'smartrent/disputes/evidence');
         const evidenceData = {
           fileName: file.originalname,
-          filePath: fileUrl,
+          filePath: uploadedEvidence.secure_url,
           fileSize: file.size,
           mimeType: file.mimetype,
           uploadedBy: userId,
@@ -2490,7 +2556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up uploaded files on error
       if (req.files && Array.isArray(req.files)) {
         for (const file of req.files) {
-          await fs.unlink(file.path).catch(() => { });
+          await cleanupTempFile(file);
         }
       }
 

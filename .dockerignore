@@ -12,3 +12,4 @@ ai-service/model.pkl
 ai-service/dataset
 uploads/*
 !uploads/*.jpeg
+!uploads/logo.png

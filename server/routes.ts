@@ -69,15 +69,18 @@ async function uploadFileToCloudinary(file: Express.Multer.File, folder: string)
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const getAIServiceUrl = () => {
-    if (process.env.AI_SERVICE_URL) {
-      return process.env.AI_SERVICE_URL;
+    const aiServiceUrl = process.env.AI_SERVICE_URL;
+    const aiServiceHostPort = process.env.AI_SERVICE_HOSTPORT;
+
+    if (aiServiceUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(aiServiceUrl)) {
+      return aiServiceUrl;
     }
 
-    if (process.env.AI_SERVICE_HOSTPORT) {
-      return `http://${process.env.AI_SERVICE_HOSTPORT}`;
+    if (aiServiceHostPort) {
+      return `http://${aiServiceHostPort}`;
     }
 
-    return "http://localhost:8000";
+    return aiServiceUrl || "http://localhost:8000";
   };
 
   // Helper: load properties from dataset folder (JSON or CSV)
@@ -1207,7 +1210,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await response.json();
       res.json(data);
     } catch (error) {
-      res.status(503).json({ status: "unavailable", error: "AI service unreachable" });
+      res.status(503).json({
+        status: "unavailable",
+        error: "AI service unreachable",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
   });
 

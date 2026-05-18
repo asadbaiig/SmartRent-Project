@@ -1165,8 +1165,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("[AI Service] Error:", error.message);
-      return res.status(500).json({ 
-        error: "Internal server error",
+      return res.status(503).json({ 
+        error: "AI service unavailable",
         details: error.message 
       });
     }

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -50,6 +51,14 @@ try:
     model = artifact_data["model"]
     encoders = artifact_data["encoders"]
     feature_columns = artifact_data["feature_columns"]
+
+    # The trained RandomForest artifact uses parallel workers by default. On
+    # Windows this can fail inside API requests when joblib tries to create
+    # multiprocessing queues, so keep inference single-threaded.
+    if hasattr(model, "n_jobs"):
+        model.n_jobs = 1
+    if hasattr(model, "verbose"):
+        model.verbose = 0
     
     print("=" * 60)
     print("✅ SmartRent AI Service Started")
@@ -141,11 +150,11 @@ def build_input_df(req: PricePredictionRequest) -> pd.DataFrame:
                 row[col] = safe_encode(encoders[col], req.city) if col in encoders else 0
             elif col == "property_type":
                 row[col] = safe_encode(encoders[col], req.property_type) if col in encoders else 0
-            elif col == "sqft":
+            elif col in ("sqft", "area_sqft"):
                 row[col] = float(req.sqft)
             elif col == "bedrooms":
                 row[col] = int(req.bedrooms or 2)
-            elif col == "bathrooms":
+            elif col in ("bathrooms", "baths"):
                 row[col] = int(req.bathrooms or 1)
             elif col == "area":
                 val = req.area or "other"
@@ -479,10 +488,13 @@ def area_stats(
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     """Custom HTTP exception handler"""
-    return {
-        "error": exc.detail,
-        "status_code": exc.status_code
-    }
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.detail,
+            "status_code": exc.status_code,
+        },
+    )
 
 
 if __name__ == "__main__":

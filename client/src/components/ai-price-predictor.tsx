@@ -79,7 +79,14 @@ export function AIPricePredictorModal({ onApplyFilters }: AIPricePredictorModalP
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get prediction");
+        let message = "Failed to get prediction";
+        try {
+          const errorData = await response.json();
+          message = errorData.details || errorData.error || errorData.message || message;
+        } catch {
+          message = await response.text() || message;
+        }
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -88,7 +95,7 @@ export function AIPricePredictorModal({ onApplyFilters }: AIPricePredictorModalP
     } catch (error) {
       toast({
         title: "Error",
-        description: "Could not get AI prediction. Please try again.",
+        description: error instanceof Error ? error.message : "Could not get AI prediction. Please try again.",
         variant: "destructive",
       });
     } finally {

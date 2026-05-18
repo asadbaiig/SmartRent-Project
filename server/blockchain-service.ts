@@ -69,13 +69,15 @@ export class BlockchainService {
       }
       
       const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
-      const privateKey = process.env.BLOCKCHAIN_PRIVATE_KEY;
+      const rawPrivateKey = process.env.BLOCKCHAIN_PRIVATE_KEY;
       this.contractAddress = process.env.RENTAL_CONTRACT_ADDRESS || null;
 
-      if (!privateKey) {
+      if (!rawPrivateKey) {
         console.warn("[Blockchain] BLOCKCHAIN_PRIVATE_KEY not set. Blockchain features disabled.");
         return;
       }
+
+      const privateKey = rawPrivateKey.startsWith("0x") ? rawPrivateKey : `0x${rawPrivateKey}`;
 
       if (!this.contractAddress) {
         console.warn("[Blockchain] RENTAL_CONTRACT_ADDRESS not set. Blockchain features disabled.");
@@ -452,4 +454,3 @@ export class BlockchainService {
 
 // Export singleton instance
 export const blockchainService = new BlockchainService();
-

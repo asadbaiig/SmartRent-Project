@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: smartrent-ai
+    runtime: docker
+    plan: free
+    dockerfilePath: ./ai-service/Dockerfile
+    dockerContext: ./ai-service
+    healthCheckPath: /health
+
+  - type: web
+    name: smartrent-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.web
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AI_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: smartrent-ai
+          property: hostport
+      - key: VITE_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: MONGODB_SRV_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: BLOCKCHAIN_ENABLED
+        value: "true"
+      - key: BLOCKCHAIN_PRIVATE_KEY
+        sync: false
+      - key: BLOCKCHAIN_RPC_URL
+        sync: false
+      - key: RENTAL_CONTRACT_ADDRESS
+        sync: false

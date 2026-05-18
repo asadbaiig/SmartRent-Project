@@ -1,0 +1,14 @@
+.git
+.env
+node_modules
+dist
+coverage
+client/coverage
+logs
+*.tar.gz
+**/__pycache__
+**/*.pyc*
+ai-service/model.pkl
+ai-service/dataset
+uploads/*
+!uploads/*.jpeg

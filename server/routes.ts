@@ -68,6 +68,17 @@ async function uploadFileToCloudinary(file: Express.Multer.File, folder: string)
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const getAIServiceUrl = () => {
+    if (process.env.AI_SERVICE_URL) {
+      return process.env.AI_SERVICE_URL;
+    }
+
+    if (process.env.AI_SERVICE_HOSTPORT) {
+      return `http://${process.env.AI_SERVICE_HOSTPORT}`;
+    }
+
+    return "http://localhost:8000";
+  };
 
   // Helper: load properties from dataset folder (JSON or CSV)
   async function loadDatasetProperties(): Promise<any[]> {
@@ -1111,7 +1122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─────────────────────────────────────────────
   // AI PRICE SUGGESTION (calls Python FastAPI)
   // ─────────────────────────────────────────────
-  const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+  const AI_SERVICE_URL = getAIServiceUrl();
 
   app.post("/api/ai/price-suggestion", async (req: Request, res: Response) => {
     try {
@@ -1177,7 +1188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─────────────────────────────────────────────
   app.get("/api/ai/model-info", async (req: Request, res: Response) => {
     try {
-      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+      const AI_SERVICE_URL = getAIServiceUrl();
       const response = await fetch(`${AI_SERVICE_URL}/model-info`);
       const data = await response.json();
       res.json(data);
@@ -1191,7 +1202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─────────────────────────────────────────────
   app.get("/api/ai/health", async (req: Request, res: Response) => {
     try {
-      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+      const AI_SERVICE_URL = getAIServiceUrl();
       const response = await fetch(`${AI_SERVICE_URL}/health`);
       const data = await response.json();
       res.json(data);
@@ -1205,7 +1216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─────────────────────────────────────────────
   app.get("/api/ai/area-stats", async (req: Request, res: Response) => {
     try {
-      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+      const AI_SERVICE_URL = getAIServiceUrl();
       const params = new URLSearchParams();
       const city = req.query.city as string | undefined;
       const propertyType = req.query.propertyType as string | undefined;

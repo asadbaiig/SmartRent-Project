@@ -82,9 +82,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     return aiServiceUrl || "http://localhost:8000";
   };
+  let datasetPropertiesCache: Promise<any[]> | null = null;
 
   // Helper: load properties from dataset folder (JSON or CSV)
   async function loadDatasetProperties(): Promise<any[]> {
+    if (datasetPropertiesCache) {
+      return datasetPropertiesCache;
+    }
+
+    datasetPropertiesCache = loadDatasetPropertiesFromDisk().catch((error) => {
+      datasetPropertiesCache = null;
+      throw error;
+    });
+
+    return datasetPropertiesCache;
+  }
+
+  async function loadDatasetPropertiesFromDisk(): Promise<any[]> {
     try {
       let datasetDir = path.resolve(process.cwd(), "server", "dataset");
       let entries: string[] = [];
@@ -1214,8 +1228,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "unavailable",
         error: "AI service unreachable",
         details: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error && "cause" in error ? String((error as any).cause?.message || (error as any).cause) : undefined,
+        configuredUrl: getAIServiceUrl(),
       });
     }
+  });
+
+  app.get("/api/ai/debug", async (_req: Request, res: Response) => {
+    res.json({
+      configuredUrl: getAIServiceUrl(),
+      hasAIServiceUrl: Boolean(process.env.AI_SERVICE_URL),
+      hasAIServiceHostPort: Boolean(process.env.AI_SERVICE_HOSTPORT),
+      aiServiceHostPort: process.env.AI_SERVICE_HOSTPORT || null,
+    });
   });
 
   // ─────────────────────────────────────────────
@@ -1288,39 +1313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(contractsWithUsers);
     } catch (error) {
       console.error("Get contracts error:", error);
-      // Fallback to Firebase on error
-      try {
-        const filters: any = {};
-        if (req.user!.role === 'landlord') {
-          filters.landlordId = req.user!.uid;
-        } else if (req.user!.role === 'tenant') {
-          filters.tenantId = req.user!.uid;
-        }
-        const contracts = await firebaseStorage.getContracts(filters);
-
-        // Populate tenant and landlord emails
-        const contractsWithUsers = await Promise.all(contracts.map(async (contract: any) => {
-          try {
-            const tenant = await firebaseStorage.getUserById(contract.tenantId);
-            const landlord = await firebaseStorage.getUserById(contract.landlordId);
-            return {
-              ...contract,
-              tenantEmail: tenant?.email || 'Unknown',
-              landlordEmail: landlord?.email || 'Unknown',
-            };
-          } catch (err) {
-            return {
-              ...contract,
-              tenantEmail: 'Unknown',
-              landlordEmail: 'Unknown',
-            };
-          }
-        }));
-
-        res.json(contractsWithUsers);
-      } catch (fallbackError) {
-        res.status(500).json({ message: "Internal server error" });
-      }
+      res.json([]);
     }
   });
 

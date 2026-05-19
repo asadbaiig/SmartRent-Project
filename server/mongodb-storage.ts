@@ -1,6 +1,6 @@
-import { getPropertyModel, getDocumentModel, getContractModel, type PropertyDocument, type DocumentDocument, type ContractDocument } from './mongodb-models';
+import { getPropertyModel, getDocumentModel, getContractModel, getAuditLogModel, type PropertyDocument, type DocumentDocument, type ContractDocument, type AuditLogDocument } from './mongodb-models';
 import { isMongoDBConnected } from './mongodb';
-import type { Property, InsertProperty, Document, InsertDocument, Contract, InsertContract } from '@shared/schema';
+import type { Property, InsertProperty, Document, InsertDocument, Contract, InsertContract, AuditLog, InsertAuditLog } from '@shared/schema';
 import { blockchainService } from './blockchain-service';
 
 export class MongoDBStorage {
@@ -51,6 +51,14 @@ export class MongoDBStorage {
       }
       if (filters.isAvailable !== undefined) {
         query.isAvailable = filters.isAvailable;
+      }
+      if (filters.approvalStatus) {
+        query.approvalStatus = filters.approvalStatus;
+      } else if (!filters.includeUnapproved && !filters.landlordId) {
+        query.$or = [
+          { approvalStatus: 'approved' },
+          { approvalStatus: { $exists: false } },
+        ];
       }
       if (filters.landlordId) {
         query.landlordId = filters.landlordId;
@@ -149,6 +157,42 @@ export class MongoDBStorage {
       return properties.map(p => this.mapPropertyToSchema(p));
     } catch (error) {
       console.error('[MongoDB] Error getting properties by landlord:', error);
+      return [];
+    }
+  }
+
+  async createAuditLog(logData: InsertAuditLog): Promise<AuditLog> {
+    this.checkConnection();
+    const AuditLogModel = await getAuditLogModel();
+    const log = new AuditLogModel({
+      ...logData,
+      createdAt: new Date()
+    });
+
+    const saved = await log.save();
+    return this.mapAuditLogToSchema(saved);
+  }
+
+  async getAuditLogs(filters: any = {}): Promise<AuditLog[]> {
+    if (!isMongoDBConnected()) return [];
+    try {
+      const AuditLogModel = await getAuditLogModel();
+      const query: any = {};
+
+      if (filters.entityType) query.entityType = filters.entityType;
+      if (filters.entityId) query.entityId = filters.entityId;
+      if (filters.actorId) query.actorId = filters.actorId;
+      if (filters.action) query.action = filters.action;
+
+      const logs = await AuditLogModel.find(query)
+        .sort({ createdAt: -1 })
+        .limit(filters.limit || 100)
+        .skip(filters.offset || 0)
+        .exec();
+
+      return logs.map((log: AuditLogDocument) => this.mapAuditLogToSchema(log));
+    } catch (error) {
+      console.error('[MongoDB] Error getting audit logs:', error);
       return [];
     }
   }
@@ -437,6 +481,10 @@ export class MongoDBStorage {
       amenities: property.amenities || null,
       images: property.images || null,
       isAvailable: property.isAvailable,
+      approvalStatus: (property as any).approvalStatus || 'approved',
+      approvalNotes: (property as any).approvalNotes || null,
+      approvedBy: (property as any).approvedBy || null,
+      approvedAt: (property as any).approvedAt || null,
       aiSuggestedPrice: property.aiSuggestedPrice || null,
       createdAt: property.createdAt || new Date(),
       updatedAt: property.updatedAt || new Date(),
@@ -477,7 +525,20 @@ export class MongoDBStorage {
       updatedAt: contract.updatedAt || new Date(),
     };
   }
+
+  private mapAuditLogToSchema(log: AuditLogDocument): AuditLog {
+    return {
+      id: log._id.toString(),
+      actorId: log.actorId || null,
+      actorRole: log.actorRole || null,
+      action: log.action,
+      entityType: log.entityType,
+      entityId: log.entityId,
+      summary: log.summary,
+      metadata: log.metadata || null,
+      createdAt: log.createdAt || new Date(),
+    };
+  }
 }
 
 export const mongoDBStorage = new MongoDBStorage();
-

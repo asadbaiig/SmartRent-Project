@@ -1,7 +1,7 @@
- import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Bed, Bath, Expand, Star, Share2 } from "lucide-react";
+import { MapPin, Bed, Bath, Expand, Star, Share2, Map } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/utils";
 
 const DEFAULT_PROPERTY_IMAGE =
   "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600";
@@ -114,8 +115,8 @@ export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProp
           whileHover={{ y: -8 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
         >
-          <Card className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 group cursor-pointer">
-            <div className="relative overflow-hidden rounded-t-xl">
+          <Card className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 group cursor-pointer">
+            <div className="relative overflow-hidden">
               <img
                 src={propertyImage}
                 alt={property.title}
@@ -125,15 +126,7 @@ export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProp
                 loading="lazy"
               />
 
-              {/* Overlay gradient for better text readability */}
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-
-              {/* Price pill */}
-              <div className="absolute bottom-3 left-3">
-                <div className="px-3 py-1 rounded-full bg-white/90 backdrop-blur text-gray-900 text-sm font-semibold shadow">
-                  ₨{Number(property.monthlyRent).toLocaleString()} <span className="text-xs font-normal text-gray-600">/month</span>
-                </div>
-              </div>
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
 
               {/* Status Badges */}
               <div className="absolute top-3 left-3 flex space-x-2">
@@ -158,6 +151,7 @@ export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProp
                     setShareDialogOpen(true);
                   }}
                   title="Share property"
+                  aria-label="Share property"
                 >
                   <Share2 className="h-4 w-4 text-gray-700" />
                 </Button>
@@ -174,6 +168,7 @@ export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProp
                       }
                     }}
                     title="Delete property"
+                    aria-label="Delete property"
                     disabled={deleteMutation.isPending}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -183,9 +178,13 @@ export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProp
 
             </div>
 
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors line-clamp-1">
+            <CardContent className="p-5">
+              <div className="mb-2 space-y-1">
+                <div className="text-xl font-bold tracking-tight text-slate-950 dark:text-white">
+                  {formatCurrency(property.monthlyRent)}
+                  <span className="ml-1 text-xs font-medium text-slate-500 dark:text-slate-400">/month</span>
+                </div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors line-clamp-1">
                   {property.title}
                 </h3>
               </div>
@@ -195,7 +194,7 @@ export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProp
                 <span>{property.area}, {property.city}</span>
               </div>
 
-              <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 mb-4 min-h-5">
                 {property.bedrooms && (
                   <span className="flex items-center">
                     <Bed className="mr-1 h-4 w-4" />
@@ -270,6 +269,20 @@ export function PropertyCard({ property, noEntranceAnimation }: PropertyCardProp
                   Verified
                 </Badge>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 w-full justify-center gap-2 border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  window.location.href = `/properties?view=map&propertyId=${encodeURIComponent(property.id)}`;
+                }}
+                data-testid={`button-view-map-${property.id}`}
+              >
+                <Map className="h-4 w-4" />
+                View on map
+              </Button>
             </CardContent>
           </Card>
         </motion.div>

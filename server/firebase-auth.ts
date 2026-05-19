@@ -168,8 +168,8 @@ export const firebaseAuth = {
           email: firebaseUser.email || '',
           fullName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
           phone: firebaseUser.phoneNumber || null,
-          role: role || 'tenant',
-          verificationStatus: 'pending',
+          role: (role || 'tenant') as 'landlord' | 'tenant' | 'admin',
+          verificationStatus: 'pending' as const,
           cnicNumber: null,
           profileImage: firebaseUser.photoURL || null
         };

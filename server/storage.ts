@@ -136,7 +136,7 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
     const [user] = await db
       .update(users)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(users.id, id))
       .returning();
     return user;
@@ -145,7 +145,7 @@ export class DatabaseStorage implements IStorage {
   async updateUserVerificationStatus(id: string, status: "pending" | "verified" | "rejected"): Promise<User> {
     const [user] = await db
       .update(users)
-      .set({ verificationStatus: status, updatedAt: new Date() })
+      .set({ verificationStatus: status, updatedAt: new Date() } as any)
       .where(eq(users.id, id))
       .returning();
     return user;
@@ -162,7 +162,7 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<Property[]> {
-    let query = db.select().from(properties);
+    let query: any = db.select().from(properties);
 
     const conditions = [];
 
@@ -223,7 +223,7 @@ export class DatabaseStorage implements IStorage {
   async updateProperty(id: string, updates: Partial<InsertProperty>): Promise<Property> {
     const [property] = await db
       .update(properties)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(properties.id, id))
       .returning();
     return property;
@@ -241,7 +241,7 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<Contract[]> {
-    let query = db.select().from(contracts);
+    let query: any = db.select().from(contracts);
 
     const conditions = [];
 
@@ -279,7 +279,7 @@ export class DatabaseStorage implements IStorage {
   async createContract(contract: InsertContract): Promise<Contract> {
     const [newContract] = await db
       .insert(contracts)
-      .values(contract)
+      .values(contract as any)
       .returning();
     return newContract;
   }
@@ -287,7 +287,7 @@ export class DatabaseStorage implements IStorage {
   async updateContract(id: string, updates: Partial<InsertContract>): Promise<Contract> {
     const [contract] = await db
       .update(contracts)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(contracts.id, id))
       .returning();
     return contract;
@@ -302,7 +302,7 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<Payment[]> {
-    let query = db.select().from(payments);
+    let query: any = db.select().from(payments);
 
     const conditions = [];
 
@@ -351,7 +351,7 @@ export class DatabaseStorage implements IStorage {
   async updatePayment(id: string, updates: Partial<InsertPayment>): Promise<Payment> {
     const [payment] = await db
       .update(payments)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(payments.id, id))
       .returning();
     return payment;
@@ -364,7 +364,7 @@ export class DatabaseStorage implements IStorage {
     contractId?: string;
     type?: string;
   }): Promise<Document[]> {
-    let query = db.select().from(documents);
+    let query: any = db.select().from(documents);
 
     const conditions = [];
 
@@ -420,7 +420,7 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<Dispute[]> {
-    let query = db.select().from(disputes);
+    let query: any = db.select().from(disputes);
 
     const conditions = [];
 
@@ -466,7 +466,7 @@ export class DatabaseStorage implements IStorage {
   async updateDispute(id: string, updates: Partial<InsertDispute>): Promise<Dispute> {
     const [dispute] = await db
       .update(disputes)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(disputes.id, id))
       .returning();
     return dispute;
@@ -478,7 +478,7 @@ export class DatabaseStorage implements IStorage {
     reviewerId?: string;
     revieweeId?: string;
   }): Promise<Review[]> {
-    let query = db.select().from(reviews);
+    let query: any = db.select().from(reviews);
 
     const conditions = [];
 

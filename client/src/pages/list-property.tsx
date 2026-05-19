@@ -235,12 +235,11 @@ export default function ListProperty() {
       const property = await response.json();
 
       toast({
-        title: "Property Listed Successfully!",
-        description: "Your property is now live on SmartRent",
+        title: "Property submitted for review",
+        description: "An admin will approve it before it appears publicly.",
       });
 
-      // Redirect to property details or dashboard
-      setLocation(`/properties/${property.id}`);
+      setLocation('/dashboard');
     } catch (error: any) {
       toast({
         title: "Failed to List Property",
@@ -661,4 +660,3 @@ export default function ListProperty() {
     </motion.div>
   );
 }
-

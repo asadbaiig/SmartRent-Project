@@ -10,8 +10,8 @@ const originalLog = console.log;
 const originalError = console.error;
 
 beforeAll(() => {
-  console.log = jest.fn();
-  console.error = jest.fn();
+  console.log = vi.fn();
+  console.error = vi.fn();
 });
 
 afterAll(() => {
@@ -21,4 +21,3 @@ afterAll(() => {
 
 // Note: We don't reset modules here as it causes "Jest environment torn down" errors
 // Mocks are handled at the test file level
-

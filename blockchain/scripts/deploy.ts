@@ -1,5 +1,7 @@
 const hre = require("hardhat");
 
+export {};
+
 async function main() {
   const { ethers } = hre;
   console.log("Deploying RentalContract...");
@@ -34,4 +36,3 @@ main()
     console.error("Deployment failed:", error);
     process.exitCode = 1;
   });
-

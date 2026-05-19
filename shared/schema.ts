@@ -7,6 +7,7 @@ import { z } from "zod";
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["landlord", "tenant", "admin"]);
 export const verificationStatusEnum = pgEnum("verification_status", ["pending", "verified", "rejected"]);
+export const propertyApprovalStatusEnum = pgEnum("property_approval_status", ["pending_review", "approved", "rejected"]);
 export const propertyTypeEnum = pgEnum("property_type", ["apartment", "house", "commercial", "office"]);
 export const contractStatusEnum = pgEnum("contract_status", ["draft", "active", "expired", "terminated"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "paid", "overdue", "failed"]);
@@ -45,9 +46,26 @@ export const properties = pgTable("properties", {
   amenities: jsonb("amenities"),
   images: jsonb("images"),
   isAvailable: boolean("is_available").notNull().default(true),
+  approvalStatus: propertyApprovalStatusEnum("approval_status").notNull().default("pending_review"),
+  approvalNotes: text("approval_notes"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
   aiSuggestedPrice: decimal("ai_suggested_price", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Audit logs table
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  actorId: varchar("actor_id").references(() => users.id),
+  actorRole: text("actor_role"),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  summary: text("summary").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Contracts table
@@ -241,20 +259,23 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
 }));
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({
+const createTypedInsertSchema = (table: Parameters<typeof createInsertSchema>[0]) =>
+  createInsertSchema(table) as z.ZodObject<any>;
+
+export const insertUserSchema = createTypedInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertPropertySchema = createInsertSchema(properties).omit({
+export const insertPropertySchema = createTypedInsertSchema(properties).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
 // Create schema without date requirements - dates will be handled in storage layer
-export const insertContractSchema = createInsertSchema(contracts)
+export const insertContractSchema = createTypedInsertSchema(contracts)
   .omit({
     id: true,
     createdAt: true,
@@ -268,7 +289,7 @@ export const insertContractSchema = createInsertSchema(contracts)
     duration: z.union([z.number(), z.string()]).optional(),
   });
 
-const basePaymentSchema = createInsertSchema(payments).omit({
+const basePaymentSchema = createTypedInsertSchema(payments).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -281,34 +302,55 @@ export const insertPaymentSchema = basePaymentSchema.merge(
   })
 );
 
-export const insertDocumentSchema = createInsertSchema(documents).omit({
+export const insertDocumentSchema = createTypedInsertSchema(documents).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertDisputeSchema = createInsertSchema(disputes).omit({
+export const insertDisputeSchema = createTypedInsertSchema(disputes).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertReviewSchema = createInsertSchema(reviews).omit({
+export const insertReviewSchema = createTypedInsertSchema(reviews).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAuditLogSchema = createTypedInsertSchema(auditLogs).omit({
   id: true,
   createdAt: true,
 });
 
 // Types
 export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertUser = Partial<Omit<User, "id" | "createdAt" | "updatedAt">> & Pick<User, "email" | "password" | "fullName">;
 export type Property = typeof properties.$inferSelect;
-export type InsertProperty = z.infer<typeof insertPropertySchema>;
+export type InsertProperty = Partial<Omit<Property, "id" | "createdAt" | "updatedAt">> &
+  Pick<Property, "landlordId" | "title" | "address" | "city" | "area" | "propertyType" | "monthlyRent">;
 export type Contract = typeof contracts.$inferSelect;
-export type InsertContract = z.infer<typeof insertContractSchema>;
+export type InsertContract = Partial<Omit<Contract, "id" | "createdAt" | "updatedAt" | "startDate" | "endDate">> &
+  Pick<Contract, "propertyId" | "landlordId" | "tenantId" | "monthlyRent" | "securityDeposit"> & {
+  startDate?: Date;
+  endDate?: Date;
+  duration?: number | string;
+};
 export type Payment = typeof payments.$inferSelect;
-export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type InsertPayment = Partial<Omit<Payment, "id" | "createdAt" | "updatedAt" | "dueDate" | "paidDate">> &
+  Pick<Payment, "landlordId" | "tenantId" | "contractId" | "amount"> & {
+  dueDate: Date;
+  paidDate?: Date;
+};
 export type Document = typeof documents.$inferSelect;
-export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type InsertDocument = Partial<Omit<Document, "id" | "createdAt">> &
+  Pick<Document, "userId" | "type" | "fileName" | "filePath">;
 export type Dispute = typeof disputes.$inferSelect;
-export type InsertDispute = z.infer<typeof insertDisputeSchema>;
+export type InsertDispute = Partial<Omit<Dispute, "id" | "createdAt" | "updatedAt">> &
+  Pick<Dispute, "contractId" | "raisedBy" | "againstUser" | "title" | "description">;
 export type Review = typeof reviews.$inferSelect;
-export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type InsertReview = Partial<Omit<Review, "id" | "createdAt">> &
+  Pick<Review, "contractId" | "reviewerId" | "revieweeId" | "rating">;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = Partial<Omit<AuditLog, "id" | "createdAt">> &
+  Pick<AuditLog, "action" | "entityType" | "entityId" | "summary">;

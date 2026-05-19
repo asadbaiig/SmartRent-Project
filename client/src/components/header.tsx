@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Moon, Sun, User, LogOut, Shield, FileText, CheckCheck, Link2 } from "lucide-react";
+import { Bell, Moon, Sun, User, LogOut, Shield, FileText, CheckCheck, Link2, Menu } from "lucide-react";
 
 interface Notification {
   id: string;
@@ -20,6 +20,7 @@ interface Notification {
   title: string;
   message: string;
   contractId?: string;
+  propertyId?: string;
   blockchainHash?: string;
   isRead: boolean;
   createdAt: string;
@@ -92,17 +93,28 @@ export function Header() {
     setLocation("/");
   };
 
+  const mobileLinks = [
+    { href: "/", label: "Home", show: true },
+    { href: "/properties", label: "Properties", show: true },
+    { href: "/dashboard", label: "Dashboard", show: !!user && user.role !== "admin" },
+    { href: "/admin/portal", label: "Admin Portal", show: !!user && user.role === "admin" },
+    { href: "/contracts", label: "Contracts", show: !!user },
+    { href: "/payments", label: "Payments", show: !!user },
+    { href: "/disputes", label: "Disputes", show: !!user },
+    { href: "/verification", label: "Verification", show: !!user && user.role !== "admin" },
+  ].filter((item) => item.show);
+
   return (
-    <header className="bg-[#FFF5FF]/70 dark:bg-[#1a0f2e]/70 backdrop-blur-md shadow-lg border-b border-[#A187B0]/20 dark:border-gray-700/20 sticky top-0 z-50 rounded-b-3xl">
-      <div className="w-full px-2">
-        <div className="flex items-center justify-between h-20">
+    <header className="bg-white/85 dark:bg-slate-950/85 backdrop-blur-md shadow-sm border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-50">
+      <div className="w-full px-3 sm:px-6">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center ml-6" data-testid="link-home">
+          <Link href="/" className="flex items-center" data-testid="link-home">
             <div className="flex-shrink-0 flex items-center">
               <img 
                 src="/uploads/logo.png" 
                 alt="SmartRent Logo" 
-                className="h-[95px] w-auto object-contain"
+                className="h-16 w-auto object-contain"
               />
             </div>
           </Link>
@@ -161,6 +173,35 @@ export function Header() {
 
           {/* Right side actions */}
           <div className="flex items-center space-x-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="md:hidden" aria-label="Open navigation" data-testid="button-mobile-menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {mobileLinks.map((item) => (
+                  <DropdownMenuItem asChild key={item.href}>
+                    <Link href={item.href} className="flex items-center justify-between" data-testid={`link-mobile-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                      <span>{item.label}</span>
+                      {location === item.href && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+                {!user && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/login">Login</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/register">Register</Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Theme Toggle */}
             <Button
               variant="ghost"

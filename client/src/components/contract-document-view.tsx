@@ -243,7 +243,7 @@ export function ContractDocumentView({ contract, open, onOpenChange }: ContractD
         }
       `}</style>
       
-      <Dialog open={open} onOpenChange={onOpenChange} className="max-w-4xl">
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto no-print">
           <DialogHeader className="no-print">
             <div className="flex justify-between items-center">
@@ -377,4 +377,3 @@ export function ContractDocumentView({ contract, open, onOpenChange }: ContractD
     </>
   );
 }
-

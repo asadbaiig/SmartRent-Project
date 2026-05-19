@@ -1,4 +1,4 @@
-import type { Property, InsertProperty, Document, InsertDocument, Dispute, InsertDispute, Contract, InsertContract } from '@shared/schema';
+import type { Property, InsertProperty, Document, InsertDocument, Dispute, InsertDispute, Contract, InsertContract, AuditLog } from '@shared/schema';
 
 // Dynamic imports to handle mongoose
 let PropertyModel: any;
@@ -6,6 +6,7 @@ let DocumentModel: any;
 let DisputeModel: any;
 let ContractModel: any;
 let NotificationModel: any;
+let AuditLogModel: any;
 let modelsInitialized = false;
 
 export async function getPropertyModel() {
@@ -43,6 +44,13 @@ export async function getNotificationModel() {
   return NotificationModel;
 }
 
+export async function getAuditLogModel() {
+  if (!modelsInitialized) {
+    await initializeModels();
+  }
+  return AuditLogModel;
+}
+
 async function initializeModels() {
   if (modelsInitialized) return;
   
@@ -72,6 +80,16 @@ async function initializeModels() {
       amenities: { type: [String] },
       images: { type: [String] },
       isAvailable: { type: Boolean, required: true, default: true, index: true },
+      approvalStatus: {
+        type: String,
+        required: true,
+        default: 'pending_review',
+        enum: ['pending_review', 'approved', 'rejected'],
+        index: true
+      },
+      approvalNotes: { type: String },
+      approvedBy: { type: String, index: true },
+      approvedAt: { type: Date },
       aiSuggestedPrice: { type: String },
       latitude: { type: Number },
       longitude: { type: Number },
@@ -86,7 +104,7 @@ async function initializeModels() {
     });
 
     // Create indexes
-    PropertySchema.index({ city: 1, propertyType: 1, isAvailable: 1 });
+    PropertySchema.index({ city: 1, propertyType: 1, isAvailable: 1, approvalStatus: 1 });
     PropertySchema.index({ landlordId: 1, createdAt: -1 });
     PropertySchema.index({ isAvailable: 1, createdAt: -1 });
 
@@ -209,11 +227,12 @@ async function initializeModels() {
       type: {
         type: String,
         required: true,
-        enum: ['contract_modified', 'contract_created', 'contract_terminated', 'contract_status_changed', 'general'],
+        enum: ['contract_modified', 'contract_created', 'contract_terminated', 'contract_status_changed', 'property_approval', 'general'],
       },
       title: { type: String, required: true },
       message: { type: String, required: true },
       contractId: { type: String, index: true },
+      propertyId: { type: String, index: true },
       blockchainHash: { type: String },
       isRead: { type: Boolean, default: false, index: true },
       createdAt: { type: Date, default: Date.now },
@@ -224,6 +243,25 @@ async function initializeModels() {
     NotificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
 
     NotificationModel = mongoose.models.Notification || mongoose.model('Notification', NotificationSchema);
+
+    // Audit Log Schema
+    const AuditLogSchema = new Schema({
+      actorId: { type: String, index: true },
+      actorRole: { type: String },
+      action: { type: String, required: true, index: true },
+      entityType: { type: String, required: true, index: true },
+      entityId: { type: String, required: true, index: true },
+      summary: { type: String, required: true },
+      metadata: { type: Schema.Types.Mixed },
+      createdAt: { type: Date, default: Date.now, index: true }
+    }, {
+      timestamps: false
+    });
+
+    AuditLogSchema.index({ entityType: 1, entityId: 1, createdAt: -1 });
+    AuditLogSchema.index({ actorId: 1, createdAt: -1 });
+
+    AuditLogModel = mongoose.models.AuditLog || mongoose.model('AuditLog', AuditLogSchema);
 
     modelsInitialized = true;
   } catch (error) {
@@ -241,7 +279,7 @@ export interface DocumentDocument extends Omit<Document, 'id'> {
   _id: any;
 }
 
-export interface DisputeDocument extends Omit<Dispute, 'id'> {
+export interface DisputeDocument extends Omit<Dispute, 'id' | 'evidence'> {
   _id: any;
   messages?: Array<{
     senderId: string;
@@ -277,7 +315,12 @@ export interface NotificationDocument {
   title: string;
   message: string;
   contractId?: string;
+  propertyId?: string;
   blockchainHash?: string;
   isRead: boolean;
   createdAt: Date;
+}
+
+export interface AuditLogDocument extends Omit<AuditLog, 'id'> {
+  _id: any;
 }

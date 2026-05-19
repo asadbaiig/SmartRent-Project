@@ -28,6 +28,62 @@ path.property-marker {
   cursor: pointer !important;
 }
 
+.smart-map-marker {
+  --marker-color: #4f46e5;
+  --marker-ring: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 30px;
+  padding: 0 10px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: var(--marker-color);
+  color: #ffffff;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28), 0 0 0 4px var(--marker-ring);
+  transform: translateY(-4px);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.smart-map-marker::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: var(--marker-color);
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.smart-map-marker span {
+  position: relative;
+  z-index: 1;
+}
+
+.smart-map-marker-cluster {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+}
+
+.smart-map-marker-price {
+  min-width: 64px;
+}
+
+.leaflet-marker-icon:hover .smart-map-marker {
+  transform: translateY(-8px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.34), 0 0 0 4px color-mix(in srgb, var(--marker-color) 24%, transparent);
+}
+
 :root {
   --background: #ffffff;
   --foreground: #4d4352;

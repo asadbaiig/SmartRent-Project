@@ -11,9 +11,24 @@ import { v2 as cloudinary } from "cloudinary";
 import path from "path";
 import { promises as fs } from "fs";
 import { z } from "zod";
-import { insertUserSchema, insertPropertySchema, insertContractSchema, insertPaymentSchema, insertDocumentSchema, insertDisputeSchema } from "@shared/schema";
+import {
+  insertUserSchema,
+  insertPropertySchema,
+  insertContractSchema,
+  insertPaymentSchema,
+  insertDocumentSchema,
+  insertDisputeSchema,
+  type InsertContract,
+  type InsertPayment,
+  type InsertProperty,
+} from "@shared/schema";
 
 const upload = multer({ dest: 'uploads/' });
+const uploadSingle = (fieldName: string) => (
+  typeof (upload as any).single === 'function'
+    ? (upload as any).single(fieldName)
+    : (upload as any).array(fieldName, 1)
+);
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dwpkax3ma',
@@ -50,6 +65,14 @@ async function validateUploadedFile(
 }
 
 async function uploadFileToCloudinary(file: Express.Multer.File, folder: string) {
+  if (process.env.NODE_ENV === 'test') {
+    await cleanupTempFile(file);
+    return {
+      secure_url: `https://example.test/${folder}/${file.filename || file.originalname}`,
+      public_id: `${folder}/${file.filename || file.originalname}`,
+    };
+  }
+
   if (!process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_API_SECRET === '<your_api_secret>') {
     await cleanupTempFile(file);
     throw new Error('CLOUDINARY_API_SECRET is missing in .env');
@@ -82,6 +105,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     return aiServiceUrl || "http://localhost:8000";
   };
+
+  const sendPropertyApprovalNotification = async (
+    userId: string,
+    propertyId: string,
+    status: 'pending_review' | 'approved' | 'rejected',
+    title: string,
+    notes?: string | null,
+  ) => {
+    if (!isMongoDBConnected()) return;
+
+    const copy = {
+      pending_review: {
+        title: 'Property submitted for review',
+        message: `Your property "${title}" is pending admin review. We will notify you when a decision is made.`,
+      },
+      approved: {
+        title: 'Property approved',
+        message: `Your property "${title}" has been approved and is now visible to tenants.`,
+      },
+      rejected: {
+        title: 'Property rejected',
+        message: `Your property "${title}" was rejected.${notes ? ` Reason: ${notes}` : ' Please review the listing details and submit again.'}`,
+      },
+    }[status];
+
+    try {
+      const NotificationModel = await getNotificationModel();
+      await NotificationModel.create({
+        userId,
+        type: 'property_approval',
+        title: copy.title,
+        message: copy.message,
+        propertyId,
+        isRead: false,
+        createdAt: new Date(),
+      });
+    } catch (error) {
+      console.warn('[Notifications] Failed to create property approval notification:', error);
+    }
+  };
+
   let datasetPropertiesCache: Promise<any[]> | null = null;
 
   // Helper: load properties from dataset folder (JSON or CSV)
@@ -854,18 +918,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete property (Admin only)
-  app.delete("/api/properties/:id", authenticateToken, requireRole(["admin"]), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { id } = req.params;
-      await mongoDBStorage.deleteProperty(id);
-      res.json({ message: "Property deleted successfully" });
-    } catch (error: any) {
-      console.error("Delete property error:", error);
-      res.status(500).json({ message: error.message || "Internal server error" });
-    }
-  });
-
   // Map-specific endpoint: Load properties from CSV for Islamabad, Lahore, and Karachi
   app.get("/api/properties/map", async (req: Request, res: Response) => {
     try {
@@ -1007,6 +1059,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Try MongoDB first
       const property = await mongoDBStorage.getProperty(req.params.id);
       if (property) {
+        if (property.approvalStatus && property.approvalStatus !== 'approved') {
+          return res.status(404).json({ message: "Property not found" });
+        }
         return res.json(property);
       }
       // Fallback: search dataset/CSV for this id
@@ -1027,10 +1082,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertPropertySchema.parse({
         ...req.body,
         landlordId: req.user!.uid,
-      });
+        approvalStatus: req.user!.role === 'admin' ? 'approved' : 'pending_review',
+        approvedBy: req.user!.role === 'admin' ? req.user!.uid : null,
+        approvedAt: req.user!.role === 'admin' ? new Date() : null,
+      }) as InsertProperty;
 
       // Store in MongoDB
       const property = await mongoDBStorage.createProperty(validatedData);
+      await mongoDBStorage.createAuditLog({
+        actorId: req.user!.uid,
+        actorRole: req.user!.role,
+        action: 'property_submitted',
+        entityType: 'property',
+        entityId: property.id,
+        summary: req.user!.role === 'admin'
+          ? `Admin created and approved property "${property.title}"`
+          : `Landlord submitted property "${property.title}" for review`,
+        metadata: {
+          title: property.title,
+          city: property.city,
+          area: property.area,
+          approvalStatus: property.approvalStatus,
+        },
+      });
+      await sendPropertyApprovalNotification(
+        property.landlordId,
+        property.id,
+        property.approvalStatus as 'pending_review' | 'approved' | 'rejected',
+        property.title,
+      );
       res.status(201).json(property);
     } catch (error) {
       console.error("Create property error:", error);
@@ -1093,7 +1173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const created: any[] = [];
       for (const sample of samples) {
-        const validated = insertPropertySchema.parse({ ...sample, landlordId });
+        const validated = insertPropertySchema.parse({ ...sample, landlordId }) as InsertProperty;
         // Store in MongoDB
         const property = await mongoDBStorage.createProperty(validated);
         created.push(property);
@@ -1113,7 +1193,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Property not found" });
       }
 
-      const updatedProperty = await mongoDBStorage.updateProperty(req.params.id, req.body);
+      const updates = {
+        ...req.body,
+        approvalStatus: 'pending_review',
+        approvalNotes: null,
+        approvedBy: null,
+        approvedAt: null,
+      };
+      const updatedProperty = await mongoDBStorage.updateProperty(req.params.id, updates);
+      await mongoDBStorage.createAuditLog({
+        actorId: req.user!.uid,
+        actorRole: req.user!.role,
+        action: 'property_updated',
+        entityType: 'property',
+        entityId: req.params.id,
+        summary: `Landlord updated property "${updatedProperty?.title || property.title}" and sent it back to review`,
+        metadata: {
+          previousApprovalStatus: property.approvalStatus,
+          approvalStatus: updatedProperty?.approvalStatus,
+        },
+      });
+      if (updatedProperty) {
+        await sendPropertyApprovalNotification(
+          updatedProperty.landlordId,
+          updatedProperty.id,
+          'pending_review',
+          updatedProperty.title,
+        );
+      }
       res.json(updatedProperty);
     } catch (error) {
       console.error("Update property error:", error);
@@ -1326,7 +1433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         duration: req.body.duration ? parseInt(String(req.body.duration)) : 12,
       };
 
-      const validatedData = insertContractSchema.parse(contractData);
+      const validatedData = insertContractSchema.parse(contractData) as InsertContract;
 
       // Add dates if not provided (database requires them)
       if (!validatedData.startDate) {
@@ -1420,7 +1527,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Notify all contract parties
       try {
-        const NotificationModel = await getNotificationModel();
         const modifierName = req.user!.uid;
         const partyIds = [contract.landlordId, contract.tenantId].filter(
           (id) => id !== req.user!.uid
@@ -1437,7 +1543,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdAt: new Date(),
         }));
 
-        if (notifications.length > 0) {
+        if (notifications.length > 0 && isMongoDBConnected()) {
+          const NotificationModel = await getNotificationModel();
           await NotificationModel.insertMany(notifications);
           console.log(`[Contracts] Sent ${notifications.length} modification notifications`);
         }
@@ -1541,6 +1648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title: n.title,
           message: n.message,
           contractId: n.contractId,
+          propertyId: n.propertyId,
           blockchainHash: n.blockchainHash,
           isRead: n.isRead,
           createdAt: n.createdAt,
@@ -1607,7 +1715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/payments", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const validatedData = insertPaymentSchema.parse(req.body);
+      const validatedData = insertPaymentSchema.parse(req.body) as InsertPayment;
       const payment = await firebaseStorage.createPayment(validatedData);
       res.status(201).json(payment);
     } catch (error) {
@@ -1632,7 +1740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Receipt upload endpoint for payment receipts
-  app.post("/api/payments/upload-receipt", authenticateToken, upload.single('receipt'), async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/payments/upload-receipt", authenticateToken, uploadSingle('receipt'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No receipt file uploaded" });
@@ -1750,7 +1858,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes: `Pakistani Credit Card Payment - Card ending in ${cleanedCardNumber.slice(-4)}`,
         };
 
-        const validatedData = insertPaymentSchema.parse(paymentData);
+        const validatedData = insertPaymentSchema.parse(paymentData) as InsertPayment;
         const payment = await firebaseStorage.createPayment(validatedData);
 
         res.json({
@@ -1775,7 +1883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Image upload route for property images
-  app.post("/api/upload/image", authenticateToken, upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/upload/image", authenticateToken, uploadSingle('file'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -1807,7 +1915,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Documents routes
-  app.post("/api/documents", authenticateToken, upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/documents", authenticateToken, uploadSingle('file'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -1914,16 +2022,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/admin/properties", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { status = "all", limit = 100, offset = 0 } = req.query;
+      const filters: any = {
+        includeUnapproved: true,
+        limit: Number(limit),
+        offset: Number(offset),
+      };
+      if (status !== "all") {
+        filters.approvalStatus = status;
+      }
+
+      const properties = await mongoDBStorage.getProperties(filters);
+      res.json(properties);
+    } catch (error) {
+      console.error("Get admin properties error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/properties/:id/approval", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { status, notes } = req.body;
+      if (!['pending_review', 'approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: "Invalid property approval status" });
+      }
+
+      const property = await mongoDBStorage.getProperty(req.params.id);
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+
+      const updatedProperty = await mongoDBStorage.updateProperty(req.params.id, {
+        approvalStatus: status,
+        approvalNotes: notes || null,
+        approvedBy: status === 'approved' ? req.user!.uid : null,
+        approvedAt: status === 'approved' ? new Date() : null,
+        isAvailable: status === 'rejected' ? false : property.isAvailable,
+      } as any);
+
+      await mongoDBStorage.createAuditLog({
+        actorId: req.user!.uid,
+        actorRole: req.user!.role,
+        action: `property_${status}`,
+        entityType: 'property',
+        entityId: req.params.id,
+        summary: `Admin changed property "${property.title}" from ${property.approvalStatus || 'approved'} to ${status}`,
+        metadata: {
+          title: property.title,
+          landlordId: property.landlordId,
+          previousStatus: property.approvalStatus,
+          nextStatus: status,
+          notes: notes || null,
+        },
+      });
+
+      if (updatedProperty) {
+        await sendPropertyApprovalNotification(
+          updatedProperty.landlordId,
+          updatedProperty.id,
+          status,
+          updatedProperty.title,
+          notes || null,
+        );
+      }
+
+      res.json(updatedProperty);
+    } catch (error) {
+      console.error("Update property approval error:", error);
+      res.status(400).json({ message: "Invalid data provided" });
+    }
+  });
+
+  app.get("/api/admin/audit-logs", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { entityType, entityId, actorId, action, limit = 100, offset = 0 } = req.query;
+      const logs = await mongoDBStorage.getAuditLogs({
+        entityType,
+        entityId,
+        actorId,
+        action,
+        limit: Number(limit),
+        offset: Number(offset),
+      });
+      res.json(logs);
+    } catch (error) {
+      console.error("Get audit logs error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.put("/api/admin/users/:id/verification", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { status, notes } = req.body;
       if (!status) {
         return res.status(400).json({ message: "Status is required" });
       }
+      if (!['pending', 'verified', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: "Invalid verification status" });
+      }
       const user = await firebaseStorage.updateUserVerificationStatus(req.params.id, status, notes);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
+      await mongoDBStorage.createAuditLog({
+        actorId: req.user!.uid,
+        actorRole: req.user!.role,
+        action: `user_verification_${status}`,
+        entityType: 'user',
+        entityId: req.params.id,
+        summary: `Admin changed user verification to ${status}`,
+        metadata: {
+          status,
+          notes: notes || null,
+        },
+      });
       res.json(user);
     } catch (error) {
       console.error("Update verification error:", error);

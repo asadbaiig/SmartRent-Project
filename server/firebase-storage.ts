@@ -149,7 +149,7 @@ export class FirebaseStorage {
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -316,7 +316,7 @@ export class FirebaseStorage {
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -336,7 +336,7 @@ export class FirebaseStorage {
   }
 
   async getContracts(filters: any = {}): Promise<Contract[]> {
-    let q = collection(db, 'contracts');
+    let q: any = collection(db, 'contracts');
     const constraints: any[] = [];
 
     if (filters.landlordId) {
@@ -354,7 +354,7 @@ export class FirebaseStorage {
 
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -409,7 +409,7 @@ export class FirebaseStorage {
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -429,7 +429,7 @@ export class FirebaseStorage {
   }
 
   async getPayments(filters: any = {}): Promise<Payment[]> {
-    let q = collection(db, 'payments');
+    let q: any = collection(db, 'payments');
     const constraints: any[] = [];
 
     if (filters.contractId) {
@@ -450,7 +450,7 @@ export class FirebaseStorage {
 
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -497,7 +497,7 @@ export class FirebaseStorage {
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -508,7 +508,7 @@ export class FirebaseStorage {
   }
 
   async getDocuments(filters: any = {}): Promise<Document[]> {
-    let q = collection(db, 'documents');
+    let q: any = collection(db, 'documents');
     const constraints: any[] = [];
 
     if (filters.userId) {
@@ -529,7 +529,7 @@ export class FirebaseStorage {
 
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,

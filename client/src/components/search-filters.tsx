@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Search, MapPin } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 export type SearchFiltersState = {
   city: string;
@@ -52,8 +53,8 @@ export function SearchFilters({ onSearch, variant = 'default', value }: SearchFi
 
   return (
     <section className={`${variant === 'compact' ? 'bg-transparent border-none shadow-none' : 'bg-white dark:bg-gray-800 shadow-sm border-b border-[#A187B0]/20 dark:border-gray-700 -mt-8 relative z-10'}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className={`${variant === 'compact' ? 'rounded-lg border border-[#A187B0]/30 dark:border-gray-700 p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm' : 'bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-[#A187B0]/20 dark:border-gray-700 p-6'}`}>
+      <div className={`${variant === 'compact' ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'}`}>
+        <div className={`${variant === 'compact' ? 'rounded-lg border border-[#A187B0]/30 dark:border-gray-700 p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm' : 'bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-[#A187B0]/20 dark:border-gray-700 p-6'}`}>
           <div className={`${variant === 'compact' ? 'grid grid-cols-2 lg:grid-cols-6 gap-3' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4'}`}>
             {/* Location */}
             <div className={`${variant === 'compact' ? 'col-span-2 lg:col-span-2' : 'lg:col-span-2'}`}>
@@ -123,7 +124,7 @@ export function SearchFilters({ onSearch, variant = 'default', value }: SearchFi
                   <SelectItem value="any-any">Any Budget</SelectItem>
                   {filters.minRent && filters.maxRent && !['10000-25000', '25000-50000', '50000-100000', '100000-999999'].includes(`${filters.minRent}-${filters.maxRent}`) && (
                     <SelectItem value={`${filters.minRent}-${filters.maxRent}`}>
-                      ₨{Number(filters.minRent).toLocaleString()} - ₨{Number(filters.maxRent).toLocaleString()}
+                      {formatCurrency(filters.minRent)} - {formatCurrency(filters.maxRent)}
                     </SelectItem>
                   )}
                   <SelectItem value="10000-25000">10k - 25k</SelectItem>

@@ -1,5 +1,7 @@
 const hre = require("hardhat");
 
+export {};
+
 async function main() {
   const { ethers } = hre;
   const contractAddress = process.env.RENTAL_CONTRACT_ADDRESS;
@@ -30,4 +32,3 @@ main()
     console.error(error);
     process.exitCode = 1;
   });
-

@@ -7,11 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Plus, LayoutGrid, Map as MapIcon } from "lucide-react";
+import { AlertCircle, Plus, LayoutGrid, Map as MapIcon, SlidersHorizontal } from "lucide-react";
 import MapView from "@/components/MapView";
 import { DEMO_PROPERTIES } from "@/lib/demoData";
 import { motion } from "framer-motion";
 import { Link, useLocation } from "wouter";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 const pageVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -62,6 +69,7 @@ export default function Properties() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>(getInitialViewMode());
   const [currentPage, setCurrentPage] = useState(0);
   const [highlightedProperty, setHighlightedProperty] = useState<{ id?: string; lat?: number; lng?: number } | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const pageSize = 12;
 
   // Parse URL parameters on mount and when location changes
@@ -183,6 +191,7 @@ export default function Properties() {
   const handleSearch = (newFilters: { city: string; propertyType: string; minRent: string; maxRent: string; bedrooms: string; aiSuggestions: boolean }) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));
     setCurrentPage(0); // Reset to first page
+    setFiltersOpen(false);
   };
 
   const handleAIFilters = (aiFilters: {
@@ -265,7 +274,7 @@ export default function Properties() {
   }, [properties, sortBy]);
 
   const PropertySkeleton = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
       <Skeleton className="w-full h-48" />
       <div className="p-6 space-y-3">
         <Skeleton className="h-6 w-3/4" />
@@ -291,7 +300,7 @@ export default function Properties() {
       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
     >
       {/* Fixed compact filters */}
-      <motion.div className="bg-[#FFF5FF]/50 dark:bg-[#1a0f2e]/50" variants={pageVariants}>
+      <motion.div className="hidden md:block bg-[#FFF5FF]/50 dark:bg-[#1a0f2e]/50" variants={pageVariants}>
         <SearchFilters
           onSearch={handleSearch}
           variant="compact"
@@ -318,7 +327,32 @@ export default function Properties() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Properties</h1>
               </div>
-              <div className="flex items-center space-x-2 sm:space-x-4">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                <Drawer open={filtersOpen} onOpenChange={setFiltersOpen}>
+                  <DrawerTrigger asChild>
+                    <Button variant="outline" className="md:hidden gap-2" data-testid="button-mobile-filters">
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Filters
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[88vh] overflow-y-auto">
+                    <DrawerHeader className="text-left">
+                      <DrawerTitle>Search filters</DrawerTitle>
+                    </DrawerHeader>
+                    <SearchFilters
+                      onSearch={handleSearch}
+                      variant="compact"
+                      value={{
+                        city: filters.city,
+                        propertyType: filters.propertyType,
+                        minRent: filters.minRent,
+                        maxRent: filters.maxRent,
+                        bedrooms: filters.bedrooms,
+                        aiSuggestions: filters.aiSuggestions,
+                      }}
+                    />
+                  </DrawerContent>
+                </Drawer>
                 <Button asChild className="bg-gradient-primary hover:opacity-90 transition-opacity text-white" data-testid="button-list-property">
                   <Link href="/list-property">
                     <Plus className="mr-2 h-4 w-4" />

@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { firebaseStorage } from "./firebase-storage";
 import { mongoDBStorage } from "./mongodb-storage";
-import { authenticateToken, requireRole, firebaseAuth, type AuthenticatedRequest } from "./firebase-auth";
+import { authenticateToken, createAuthToken, requireRole, firebaseAuth, type AuthenticatedRequest } from "./firebase-auth";
 import { isMongoDBConnected } from "./mongodb";
 import { getNotificationModel } from "./mongodb-models";
 import { blockchainService } from "./blockchain-service";
@@ -23,7 +23,18 @@ import {
   type InsertProperty,
 } from "@shared/schema";
 
-const upload = multer({ dest: 'uploads/' });
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
+const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const DOCUMENT_MIME_TYPES = [...IMAGE_MIME_TYPES, 'application/pdf'];
+
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: MAX_DOCUMENT_SIZE,
+    files: 5,
+  },
+});
 const uploadSingle = (fieldName: string) => (
   typeof (upload as any).single === 'function'
     ? (upload as any).single(fieldName)
@@ -35,11 +46,6 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY || '921133431241869',
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
-const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const DOCUMENT_MIME_TYPES = [...IMAGE_MIME_TYPES, 'application/pdf'];
 
 async function cleanupTempFile(file?: Express.Multer.File) {
   if (file?.path) {
@@ -61,6 +67,23 @@ async function validateUploadedFile(
   if (file.size > maxSize) {
     await cleanupTempFile(file);
     throw new Error(`File size must be less than ${Math.round(maxSize / (1024 * 1024))}MB`);
+  }
+
+  const header = await fs.readFile(file.path).then((buffer) => buffer.subarray(0, 16));
+  const isJpeg = header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+  const isPng = header.length >= 8 && header.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isWebp = header.length >= 12 && header.subarray(0, 4).toString('ascii') === 'RIFF' && header.subarray(8, 12).toString('ascii') === 'WEBP';
+  const isPdf = header.length >= 4 && header.subarray(0, 4).toString('ascii') === '%PDF';
+
+  const matchesContent =
+    (['image/jpeg', 'image/jpg'].includes(file.mimetype) && isJpeg) ||
+    (file.mimetype === 'image/png' && isPng) ||
+    (file.mimetype === 'image/webp' && isWebp) ||
+    (file.mimetype === 'application/pdf' && isPdf);
+
+  if (!matchesContent) {
+    await cleanupTempFile(file);
+    throw new Error('File content does not match the declared file type');
   }
 }
 
@@ -429,7 +452,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       );
 
-      const token = firebaseUser.uid; // simplified token; in production use Firebase ID token
+      const token = createAuthToken({
+        uid: user.uid,
+        email: user.email,
+        role: user.role,
+      });
       res.status(201).json({
         user: {
           id: user.uid,
@@ -443,7 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Registration error:", error);
-      if ((error.message || '').toLowerCase().includes('insufficient permissions')) {
+      if (process.env.ENABLE_DEMO_AUTH_FALLBACK === 'true' && (error.message || '').toLowerCase().includes('insufficient permissions')) {
         const v = req.body;
         const id = `demo-${Buffer.from(v.email || '').toString('hex').slice(0, 8)}`;
         return res.status(201).json({
@@ -454,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: v.role || 'tenant',
             verificationStatus: 'pending',
           },
-          token: id,
+          token: createAuthToken({ uid: id, email: v.email, role: v.role || 'tenant' }),
           message: "User registered (limited mode)"
         });
       }
@@ -469,7 +496,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sign in with Firebase Auth
       const { user, firebaseUser } = await firebaseAuth.signIn(email, password);
 
-      const token = firebaseUser.uid; // simplified token; in production use Firebase ID token
+      const token = createAuthToken({
+        uid: user.uid,
+        email: user.email,
+        role: user.role,
+      });
       res.json({
         user: {
           id: user.uid,
@@ -484,7 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Login error:", error);
       // Demo-friendly fallback when Firestore permissions block normal flow
-      if ((error.message || '').toLowerCase().includes('insufficient permissions')) {
+      if (process.env.ENABLE_DEMO_AUTH_FALLBACK === 'true' && (error.message || '').toLowerCase().includes('insufficient permissions')) {
         const { email } = req.body;
         const fallbackUser = {
           id: `demo-${Buffer.from(email || '').toString('hex').slice(0, 8)}`,
@@ -493,7 +524,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           role: 'tenant',
           verificationStatus: 'pending',
         };
-        const token = fallbackUser.id;
+        const token = createAuthToken({
+          uid: fallbackUser.id,
+          email: fallbackUser.email,
+          role: fallbackUser.role,
+        });
         return res.json({
           user: fallbackUser,
           token,
@@ -526,7 +561,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle Google auth - check if user exists or create new
       const { user, firebaseUser: fbUser } = await firebaseAuth.handleGoogleAuth(firebaseUser);
 
-      const token = fbUser.uid; // Use Firebase UID as token
+      const token = createAuthToken({
+        uid: user.uid,
+        email: user.email,
+        role: user.role,
+      });
       res.json({
         user: {
           id: user.uid,
@@ -541,8 +580,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Google login error:", error);
       // Demo-friendly fallback when Firestore permissions block normal flow
-      if ((error.message || '').toLowerCase().includes('insufficient permissions') ||
-        (error.message || '').includes('PERMISSION_DENIED')) {
+      if (process.env.ENABLE_DEMO_AUTH_FALLBACK === 'true' && ((error.message || '').toLowerCase().includes('insufficient permissions') ||
+        (error.message || '').includes('PERMISSION_DENIED'))) {
         const { user: firebaseUser } = req.body;
         if (firebaseUser && firebaseUser.email) {
           const fallbackUser = {
@@ -552,7 +591,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: 'tenant', // Default role for Google login fallback
             verificationStatus: 'pending',
           };
-          const token = fallbackUser.id;
+          const token = createAuthToken({
+            uid: fallbackUser.id,
+            email: fallbackUser.email,
+            role: fallbackUser.role,
+          });
           return res.json({
             user: fallbackUser,
             token,
@@ -579,7 +622,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle Google auth with role for new registrations
       const { user, firebaseUser: fbUser } = await firebaseAuth.handleGoogleAuth(firebaseUser, role);
 
-      const token = fbUser.uid; // Use Firebase UID as token
+      const token = createAuthToken({
+        uid: user.uid,
+        email: user.email,
+        role: user.role,
+      });
       res.status(201).json({
         user: {
           id: user.uid,
@@ -594,8 +641,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Google registration error:", error);
       // Demo-friendly fallback when Firestore permissions block normal flow
-      if ((error.message || '').toLowerCase().includes('insufficient permissions') ||
-        (error.message || '').includes('PERMISSION_DENIED')) {
+      if (process.env.ENABLE_DEMO_AUTH_FALLBACK === 'true' && ((error.message || '').toLowerCase().includes('insufficient permissions') ||
+        (error.message || '').includes('PERMISSION_DENIED'))) {
         const { user: firebaseUser, role } = req.body;
         if (firebaseUser && firebaseUser.email && role) {
           const fallbackUser = {
@@ -605,7 +652,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: role,
             verificationStatus: 'pending',
           };
-          const token = fallbackUser.id;
+          const token = createAuthToken({
+            uid: fallbackUser.id,
+            email: fallbackUser.email,
+            role: fallbackUser.role,
+          });
           return res.status(201).json({
             user: fallbackUser,
             token,

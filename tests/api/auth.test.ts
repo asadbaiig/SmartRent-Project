@@ -11,6 +11,7 @@ vi.mock('../../server/firebase-auth', () => {
   };
   return {
     firebaseAuth: mockAuth,
+    createAuthToken: vi.fn((user: any) => `jwt-${user.uid}`),
     authenticateToken: vi.fn((req: any, res: any, next: any) => {
       req.user = {
         uid: 'test-user-id',
@@ -281,4 +282,3 @@ describe('Authentication API', () => {
     });
   });
 });
-

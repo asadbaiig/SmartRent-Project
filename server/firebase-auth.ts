@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { auth } from './firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { firebaseStorage } from './firebase-storage';
@@ -14,6 +15,36 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
+const getJwtSecret = () => {
+  if (process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required in production');
+  }
+
+  return 'smartrent-local-development-secret';
+};
+
+const allowLegacyUidTokens = () =>
+  process.env.NODE_ENV !== 'production' || process.env.ALLOW_LEGACY_UID_TOKENS === 'true';
+
+export const createAuthToken = (user: { uid: string; email: string; role: string }) =>
+  jwt.sign(
+    {
+      sub: user.uid,
+      email: user.email,
+      role: user.role,
+    },
+    getJwtSecret(),
+    {
+      expiresIn: (process.env.JWT_EXPIRES_IN || '2h') as any,
+      issuer: 'smartrent-api',
+      audience: 'smartrent-client',
+    },
+  );
+
 // Middleware to verify Firebase ID token
 export const authenticateToken = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
@@ -24,9 +55,21 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
       return res.status(401).json({ message: 'ID token required' });
     }
 
-    // Simplified token validation: we treat token as the Firebase UID
-    // In production, verify the Firebase ID token using Firebase Admin SDK.
-    const user = await firebaseStorage.getUserById(idToken);
+    let uid = '';
+    try {
+      const decoded = jwt.verify(idToken, getJwtSecret(), {
+        issuer: 'smartrent-api',
+        audience: 'smartrent-client',
+      }) as jwt.JwtPayload;
+      uid = String(decoded.sub || '');
+    } catch (jwtError) {
+      if (!allowLegacyUidTokens()) {
+        return res.status(403).json({ message: 'Invalid or expired token' });
+      }
+      uid = idToken;
+    }
+
+    const user = await firebaseStorage.getUserById(uid);
 
     if (!user) {
       return res.status(403).json({ message: 'User not found' });

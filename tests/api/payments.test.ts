@@ -3,6 +3,7 @@ import request from 'supertest';
 
 // Mock modules
 vi.mock('../../server/firebase-auth', () => ({
+  createAuthToken: vi.fn((user: any) => `jwt-${user.uid}`),
   authenticateToken: vi.fn((req: any, res: any, next: any) => {
     req.user = {
       uid: 'tenant-1',

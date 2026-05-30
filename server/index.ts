@@ -9,8 +9,19 @@ import { connectMongoDB } from "./mongodb"; // Initialize MongoDB
 import path from "path";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -27,7 +38,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (reqPath.startsWith("/api")) {
       let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (capturedJsonResponse && process.env.LOG_API_RESPONSE_BODY === "true") {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
@@ -63,12 +74,19 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    console.error("[Server] Unhandled request error:", err);
   });
 
   // Serve uploads folder as static files - must be before Vite middleware
   const uploadsPath = path.resolve(process.cwd(), "uploads");
-  app.use('/uploads', express.static(uploadsPath));
+  app.use('/uploads', express.static(uploadsPath, {
+    dotfiles: "deny",
+    index: false,
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+    },
+  }));
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
